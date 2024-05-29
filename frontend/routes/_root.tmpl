@@ -1,0 +1,27 @@
+<!doctype html>
+<html class="w-full h-full" lang="de">
+	<head>
+		{{ block "head" . }}
+			<!-- Default Head elements -->
+		{{ end }}
+
+
+		<link rel="stylesheet" type="text/css" href="/assets/dist/style.css" />
+		<link href="/assets/dist/css/remixicon.css" rel="stylesheet" />
+		<script src="/assets/dist/js/alpine.min.js" defer></script>
+		<script src="/assets/dist/js/htmx.min.js" defer></script>
+		<script src="/assets/dist/js/htmx-response-targets.js" defer></script>
+
+		<script type="module">
+			import { setup } from "/assets/dist/scripts.js";
+			setup();
+		</script>
+	</head>
+
+	<body class="w-full h-full" hx-ext="response-targets">
+		{{ block "body" . }}
+			<!-- Default app body... -->
+		{{ end }}
+
+	</body>
+</html>

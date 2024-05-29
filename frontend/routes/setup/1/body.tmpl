@@ -1,0 +1,71 @@
+{{ template "setup-templates" . }}
+
+<setup-header>
+	<span slot="number">1</span>
+	<span slot="title">Willkommen</span>
+	<span slot="description">Legen Sie einen Administrator an.</span>
+</setup-header>
+
+<div class="max-w-screen-xl flex flex-row items-start mx-auto mt-8">
+	<div class="grow hyphens-auto">
+		<div class="w-auto max-w-md flex flex-col gap-y-6 mx-auto">
+			<form
+				class="flex flex-col"
+				x-data="{ username: '', password: '', pwconfirm: ''}"
+				method="POST"
+				hx-post
+				hx-target-error="#err">
+				<div class="pb-login-input">
+					<label for="username">E-Mail</label>
+					<input
+						type="email"
+						placeholder=""
+						name="username"
+						required
+						autocomplete="off"
+						x-model="username" />
+				</div>
+				<div class="pb-login-input">
+					<label for="password">Passwort</label>
+					<input
+						type="password"
+						placeholder=""
+						name="password"
+						required
+						autocomplete="off"
+						x-model="password" />
+				</div>
+				<div class="pb-login-input">
+					<label for="pwconfirm">Passwort bestätigen</label>
+					<input
+						type="password"
+						placeholder=""
+						name="pwconfirm"
+						required
+						autocomplete="off"
+						x-model="pwconfirm" />
+				</div>
+				<div class="flex flex-row mt-4">
+					<div class="grow">
+						<div
+							x-show="username && password.length >= 10 && pwconfirm.length >= 10 && password !== pwconfirm"
+							class="text-red-500 text-sm">
+							Passwörter stimmen nicht überein
+						</div>
+						<div x-show="username && password && password.length < 10" class="text-red-500 text-sm">
+							Passwort muss mindestens 10 Zeichen lang sein
+						</div>
+						<div id="err" class="text-red-500 text-sm"></div>
+					</div>
+					<button
+						class="w-fit grow-0 shrink-0 rounded-md bg-slate-700 text-slate-50 focus:bg-slate-800 hover:shadow hover:bg-slate-800 py-1 px-4 font-bold transition-all duration-150 active:bg-slate-700 disabled:bg-slate-400 disabled:text-slate-100 disabled:hover:shadow-none text-center"
+						type="submit"
+						x-bind:disabled="username && password && password.length >= 10 && (password === pwconfirm) ? false : true">
+						Anlegen
+						<i class="ml-2 ri-arrow-right-line inline-block transition-all align-bottom"></i>
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>

@@ -1,0 +1,55 @@
+package server
+
+import (
+	"net/http"
+	"net/url"
+	"strconv"
+
+	"github.com/Simon-Martens/caveman/app"
+	"github.com/labstack/echo/v4"
+)
+
+const (
+	AUTH_COOKIE_NAME = "auth"
+	ROLE_COOKIE_NAME = "role"
+)
+
+func MiddlewareSetup(app *app.App) echo.MiddlewareFunc {
+	// TODO: we can not map a null pointer here, so we did something stupid
+	if app.SetupState() <= 3 {
+		return func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(c echo.Context) error {
+				s := app.SetupState()
+				ctx := c.(*RequestContext)
+				path := "/setup/" + strconv.Itoa(s)
+				if s < 3 && c.Request().URL.Path != path {
+					return ctx.RedirectHTMX(http.StatusFound, path)
+				}
+				return next(c)
+			}
+		}
+	} else {
+		return func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(c echo.Context) error {
+				return next(c)
+			}
+		}
+	}
+}
+
+// RequireAdminAuth middleware requires a request to have
+// a valid admin Authorization header.
+func MiddlewareAdminAuth() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			ctx := c.(*RequestContext)
+			if ctx.admin == nil || ctx.role != Admin {
+				return ctx.RedirectHTMX(
+					http.StatusTemporaryRedirect,
+					"/login?redirect="+url.QueryEscape(c.Request().URL.Path)+"&require=admin",
+				)
+			}
+			return next(c)
+		}
+	}
+}

@@ -1,0 +1,37 @@
+package server
+
+import (
+	"github.com/Simon-Martens/caveman/app"
+	"github.com/Simon-Martens/caveman/frontend"
+	"github.com/Simon-Martens/caveman/server/handlers"
+	"github.com/labstack/echo/v4"
+)
+
+func AddRoutes(mux *echo.Echo, a *app.App) {
+	mux.GET("/assets/*", handlers.HandleStaticFS(frontend.StaticFS, false))
+	//bindFileApi(a.PocketBase(), mux.Group("/cdn"))
+
+	// mux.GET("/login", HandleLogin(a))
+	// mux.POST("/login", HandleLoginPost(a))
+
+	// if a.SetupState() == 1 {
+	// 	mux.GET("/setup/1", HandleSetup(a, 1))
+	// 	mux.POST("/setup/1", HandleSetup1Post(a))
+	// }
+
+	// if a.SetupState() <= 3 {
+	// 	mux.GET("/setup/2", HandleSetup(a, 2), MiddlewareAdminAuth())
+	// 	mux.GET("/setup/2/_settings_form", HandlePartialTemplate(a, base_state), MiddlewareAdminAuth())
+	// 	mux.GET("/setup/2/_settings", HandlePartialTemplate(a, base_state), MiddlewareAdminAuth())
+	// 	mux.POST("/setup/2", HandleSetup2Post(a), MiddlewareAdminAuth())
+	// }
+
+	mux.GET("/", HandleIndex(a), MiddlewareSetup(a))
+
+}
+
+func HandleIndex(a *app.App) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		return render_template(c, "index", base_state, a)
+	}
+}

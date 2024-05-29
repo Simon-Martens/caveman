@@ -1,0 +1,103 @@
+package server
+
+import (
+	"strings"
+
+	"github.com/Simon-Martens/caveman/app"
+	"github.com/labstack/echo/v4"
+	pbmodels "github.com/Simon-Martens/caveman/models"
+	pbtokens "github.com/Simon-Martens/caveman/tokens"
+	pbsecurity "github.com/Simon-Martens/caveman/tools/security"
+	"github.com/spf13/cast"
+)
+
+type Role int64
+
+const (
+	None Role = iota
+	Admin
+	Editor
+	User
+)
+
+type RequestContext struct {
+	echo.Context
+	admin *pbmodels.Admin
+	user  *pbmodels.Record
+	role  Role
+}
+
+// We set AUTH, HTMX Headers and CLAIMS here
+func IntoRequestContext(app *app.App) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			ctx := &RequestContext{Context: c}
+
+			setAuth(ctx, app)
+			setRole(ctx, app)
+
+			return next(ctx)
+		}
+	}
+}
+
+func setAuth(ctx *RequestContext, app *app.App) {
+	cookie, err := ctx.Cookie(AUTH_COOKIE_NAME)
+	if err != nil || len(cookie.Value) == 0 {
+		return
+	}
+	// This is prob never used
+	token := strings.TrimSpace(cookie.Value)
+
+	claims, _ := pbsecurity.ParseUnverifiedJWT(token)
+	tokenType := cast.ToString(claims["type"])
+
+	switch tokenType {
+	case pbtokens.TypeAdmin:
+		admin, err := app.Dao().FindAdminByToken(
+			token,
+			app.PBSettings().AdminAuthToken.Secret,
+		)
+		if err == nil && admin != nil {
+			ctx.admin = admin
+		}
+	case pbtokens.TypeAuthRecord:
+		record, err := app.Dao().FindAuthRecordByToken(
+			token,
+			app.PBSettings().RecordAuthToken.Secret,
+		)
+		if err == nil && record != nil {
+			ctx.user = record
+		}
+	}
+}
+
+func setRole(ctx *RequestContext, app *app.App) {
+	cookie, err := ctx.Cookie(ROLE_COOKIE_NAME)
+	if err != nil || len(cookie.Value) == 0 || (ctx.admin == nil && ctx.user == nil) {
+		ctx.role = None
+		return
+	}
+	claims := strings.TrimSpace(cookie.Value)
+	switch claims {
+	case "Admin":
+		ctx.role = Admin
+	case "Editor":
+		ctx.role = Editor
+	case "User":
+		ctx.role = User
+	}
+}
+
+func (ctx *RequestContext) IsHTMX() bool {
+	return ctx.Request().Header.Get("HX-Request") == "true"
+}
+
+func (ctx *RequestContext) RedirectHTMX(status int, url string) error {
+	if ctx.IsHTMX() {
+		ctx.Response().Header().Set("HX-Redirect", url)
+		return ctx.NoContent(status)
+	}
+
+	return ctx.Redirect(status, url)
+}

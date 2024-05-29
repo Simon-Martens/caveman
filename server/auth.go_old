@@ -1,0 +1,63 @@
+package server
+
+import (
+	"errors"
+	"net/http"
+	"net/url"
+
+	"github.com/Simon-Martens/caveman/app"
+	"github.com/labstack/echo/v4"
+	pbtokens "github.com/Simon-Martens/caveman/tokens"
+)
+
+func successfull_login(c echo.Context, r string, t string) error {
+	redirect := c.QueryParam("redirect")
+	ctx := c.(*RequestContext)
+
+	c.SetCookie(&http.Cookie{
+		Name:     AUTH_COOKIE_NAME,
+		Value:    t,
+		Path:     "/",
+		HttpOnly: true,
+	})
+
+	c.SetCookie(&http.Cookie{
+		Name:     ROLE_COOKIE_NAME,
+		Value:    r,
+		Path:     "/",
+		HttpOnly: true,
+	})
+
+	uredirect, err := url.QueryUnescape(redirect)
+	if err == nil && len(uredirect) > 0 {
+		return ctx.RedirectHTMX(http.StatusSeeOther, uredirect)
+	}
+
+	return ctx.RedirectHTMX(http.StatusSeeOther, "/")
+}
+
+func generate_user_auth(app *app.App, u string, p string) (string, error) {
+	record, err := app.Dao().FindFirstRecordByData("users", "email", u)
+	if err != nil || !record.ValidatePassword(p) {
+		return "", errors.New("Invalid credentials")
+	}
+	token, err := pbtokens.NewRecordAuthToken(app.PocketBase(), record)
+	if err != nil {
+		return "", errors.New("Could not generate auth token.")
+	}
+
+	return token, nil
+}
+
+func generate_admin_auth(app *app.App, u string, p string) (string, error) {
+	record, err := app.Dao().FindAdminByEmail(u)
+	if err != nil || !record.ValidatePassword(p) {
+		return "", errors.New("Invalid credentials")
+	}
+	token, err := pbtokens.NewAdminAuthToken(app.PocketBase(), record)
+	if err != nil {
+		return "", errors.New("Could not generate auth token.")
+	}
+
+	return token, nil
+}

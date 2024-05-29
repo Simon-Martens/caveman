@@ -1,0 +1,223 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+	@font-face {
+		font-family: "Rancho";
+		font-style: normal;
+		font-weight: 500;
+		font-display: swap;
+		src: url(./fonts/Rancho-Regular.ttf) format("truetype");
+	}
+
+	@font-face {
+		font-family: "Merriweather";
+		font-style: normal;
+		font-weight: 500;
+		font-display: swap;
+		src: url(./fonts/Merriweather-Regular.ttf) format("truetype");
+	}
+
+	@font-face {
+		font-family: "Merriweather";
+		font-style: italic;
+		font-weight: 500;
+		font-display: swap;
+		src: url(./fonts/Merriweather-Italic.ttf) format("truetype");
+	}
+
+	@font-face {
+		font-family: "Merriweather";
+		font-style: normal;
+		font-weight: bold;
+		font-display: swap;
+		src: url(./fonts/Merriweather-Bold.ttf) format("truetype");
+	}
+
+	@font-face {
+		font-family: "Merriweather";
+		font-style: italic;
+		font-weight: bold;
+		font-display: swap;
+		src: url(./fonts/SourceSans3-BoldItalic.ttf) format("truetype");
+	}
+
+	@font-face {
+		font-family: "Source Sans 3";
+		font-style: normal;
+		font-weight: 500;
+		font-display: swap;
+		src: url(./fonts/SourceSans3-Medium.ttf) format("truetype");
+	}
+
+	@font-face {
+		font-family: "Source Sans 3";
+		font-style: italic;
+		font-weight: 500;
+		font-display: swap;
+		src: url(./fonts/SourceSans3-MediumItalic.ttf) format("truetype");
+	}
+
+	@font-face {
+		font-family: "Source Sans 3";
+		font-style: normal;
+		font-weight: bold;
+		font-display: swap;
+		src: url(./fonts/SourceSans3-Bold.ttf) format("truetype");
+	}
+
+	@font-face {
+		font-family: "Source Sans 3";
+		font-style: italic;
+		font-weight: bold;
+		font-display: swap;
+		src: url(./fonts/SourceSans3-BoldItalic.ttf) format("truetype");
+	}
+
+	html {
+		font-size: 15.5px;
+	}
+
+	body {
+		@apply bg-slate-50;
+	}
+
+	h1,
+	h2,
+	h3,
+	h4 {
+		@apply font-serif;
+	}
+
+	a {
+		@apply hyphens-none underline decoration-dotted hover:decoration-solid text-slate-700 hover:text-slate-900;
+	}
+
+	ul {
+		@apply my-2;
+	}
+
+	li {
+		@apply ml-14 list-disc;
+	}
+
+	.pb-login-input {
+		@apply flex flex-col my-2 px-3 py-2 rounded bg-slate-100 transition-all duration-150 box-border border border-slate-100;
+	}
+
+	.pb-login-input label {
+		@apply text-sm font-bold text-slate-600 pb-0.5;
+	}
+
+	.pb-login-input:focus-within {
+		@apply bg-slate-200 border border-slate-700 shadow;
+	}
+
+	input {
+		@apply bg-transparent focus:outline-none focus:border-none border-none outline-none;
+	}
+
+	input[type="radio"] {
+		@apply scale-[0.85] shadow-none relative bottom-[-0.075rem] !select-none ml-1;
+	}
+
+	input[type="radio"]:checked + span {
+		@apply text-slate-700;
+	}
+
+	label {
+		@apply select-none;
+	}
+
+	.subtitle {
+		margin: 0 0 2em 0;
+	}
+
+	.fancy {
+		line-height: 0.3rem;
+		text-align: center;
+		font-variant: small-caps;
+	}
+
+	.fancy span {
+		display: inline-block;
+		position: relative;
+	}
+
+	.fancy span:before,
+	.fancy span:after {
+		content: "";
+		height: 0.5rem;
+		width: 140px;
+		@apply border-t border-slate-400 absolute top-4;
+	}
+
+	.fancy span:after {
+		@apply rounded-tr-full;
+	}
+
+	.fancy span:before {
+		@apply rounded-tl-full;
+	}
+
+	.fancy span:before {
+		right: 100%;
+		margin-right: 15px;
+	}
+
+	.fancy span:after {
+		left: 100%;
+		margin-left: 15px;
+	}
+}
+
+.setup-columns {
+	p {
+		max-width: 600px;
+	}
+
+	p:not(:first-of-type) {
+		margin-top: 1rem;
+	}
+}
+
+.settings {
+	> label,
+	> .fielddesc {
+		@apply col-span-4 font-bold font-serif text-sm pt-1;
+	}
+
+	> div {
+		@apply col-span-8;
+	}
+
+	input,
+	textarea,
+	.settings-info {
+		@apply w-full;
+	}
+
+	input[type="text"],
+	input[type="url"],
+	input[type="email"],
+	textarea {
+		@apply px-1.5 py-0.5 bg-slate-100 border-slate-400 border focus:bg-slate-50 rounded-sm;
+	}
+
+	.settings-info {
+		@apply px-1.5 py-0.5;
+	}
+
+	.formhelp {
+		@apply flex flex-row gap-x-1.5 mt-1;
+	}
+
+	.formhelp i {
+		@apply text-slate-400;
+	}
+
+	.formhelp .formhelptext {
+		@apply text-slate-700 text-sm leading-tight pt-0.5;
+	}
+}

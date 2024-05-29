@@ -1,0 +1,10 @@
+{
+  bracketSameLine: true,
+  bracketSpacing: true,
+  whitespaceSensitivity: "ignore",
+  proseWrap: "always",
+  bracketLine: true,
+  useTabs: true,
+  tabWidth: 2,
+  "plugins": ["prettier-plugin-go-template"]
+}

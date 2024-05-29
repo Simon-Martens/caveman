@@ -1,0 +1,124 @@
+<form
+	class="settings grid grid-cols-12 grid-rows-auto gap-y-4 gap-x-12 my-4 max-w-2xl"
+	autocomplete="off"
+	hx-encoding="multipart/form-data"
+	hx-post
+	hx-swap="outerHTML">
+	<label for="name">Name der Sammlung</label>
+	<div>
+		<input type="text" name="name" id="name" value="{{ .Name }}" required />
+		<div class="formhelp">
+			<div><i class="ri-information-2-fill"></i></div>
+			<div class="formhelptext">
+				Vermeiden Sie allgemeine Bezeichnungen (»Bibliothek«), sondern identifizieren Sie Ihre
+				Sammlung unter anderen (»Peters großes Modelleisenbahnverzeichnis«).
+			</div>
+		</div>
+	</div>
+	<label for="shortdescription">Kurzbeschreibung</label>
+	<div>
+		<textarea rows="3" name="desc" id="desc">
+	{{- if ge .Setup 3 -}}
+				{{- .Desc -}}
+			{{- end -}}</textarea
+		>
+		<div class="formhelp">
+			<div><i class="ri-information-2-fill"></i></div>
+			<div class="formhelptext">
+				Die wichtigste Information, knapp ausgedrückt. Was wird gesammelt? Der Text erscheint auf
+				der Startseite von PocketCatalog unter dem Titel; auch für ausgeloggte Benutzer.
+			</div>
+		</div>
+	</div>
+	<label for="url">URL der Sammlung</label>
+	<div
+		{{ if eq .URL "" }}
+			x-data="{ value: window.location.protocol + '//' + window.location.host}"
+		{{ end }}>
+		<input
+			type="text"
+			name="url"
+			id="url"
+			value="{{- if ne .URL "" -}}
+				{{- .URL -}}
+			{{ end }}"
+			{{ if eq .URL "" }}x-model="value"{{ end }}
+			required />
+		<div class="formhelp">
+			<div><i class="ri-information-2-fill"></i></div>
+			<div class="formhelptext">
+				Die URL, unter welcher die Sammlung zu finden ist. Muss normalerweise nicht geändert werden.
+			</div>
+		</div>
+	</div>
+	<label for="editor">Redaktion</label>
+	<div>
+		<input type="text" name="edition" id="edition" value="{{- .Edition -}}" />
+		<div class="formhelp">
+			<div><i class="ri-information-2-fill"></i></div>
+			<div class="formhelptext">
+				Der Name der Person oder Organisation, die die redaktionelle Veranwortung für die Sammlung
+				trägt. Erscheint im Impressum.
+			</div>
+		</div>
+	</div>
+	<label for="contact">Kontaktadresse</label>
+	<div>
+		<input
+			type="text"
+			name="contact"
+			id="contact"
+			value="{{- if ge .Setup 3 -}}
+				{{- .Contact -}}
+			{{- end -}}" />
+		<div class="formhelp">
+			<div><i class="ri-information-2-fill"></i></div>
+			<div class="formhelptext">Mailadresse. Erscheint im Impressum.</div>
+		</div>
+	</div>
+	<label for="prefix">CURIE-Prefix</label>
+	<div>
+		<input type="text" name="curie" id="curie" value="{{- .Curie -}}" required />
+		<div class="formhelp">
+			<div><i class="ri-information-2-fill"></i></div>
+			<div class="formhelptext">
+				Kurze, einmalige Buchstabenkombination. Sie haben die Möglichkeit, eigene Attribute zu
+				vergeben, falls Felder in RDA fehlen (etwa Bearbeitungsvermerke); außerdem können Sie durch
+				Vererbung von RDA-Attributen genauere Differenzierungen vornehmen. Ihre Attribute werden auf
+				dem Server maschinen- und menschenlesbar veröffentlicht.
+				<br />
+				<a href="https://prefix.cc">Vorhandene Prefixe ansehen und eigenen registrieren.</a>
+			</div>
+		</div>
+	</div>
+	<label for="logo">Logo</label>
+	<div>
+		{{- if ne .Icon "" -}}
+			<img src="{{- .Icon -}}" alt="Logo" class="w-full" />
+		{{- end -}}
+		<input type="file" id="logo" name="logo" accept="image/png, image/jpeg" />
+		<div class="formhelp">
+			<div><i class="ri-information-2-fill"></i></div>
+			<div class="formhelptext">
+				Das Logo erscheint auf der Login-Seite, der Startseite und als favicon im Browser. Am Besten
+				ein quadratisches Format wählen; jpg und png sind erlaubt.
+			</div>
+		</div>
+	</div>
+	<div class="col-span-12">
+		<progress id="progress" value="0" max="100"></progress>
+		<button type="submit" class="btn">Speichern</button>
+		{{ if ge .Setup 3 }}
+			<button type="button" hx-get="/setup/2/_settings" hx-target=".settings" hx-swap="outerHTML">
+				Verwerfen
+			</button>
+		{{ end }}
+	</div>
+</form>
+
+<script>
+	// Script to show the progress on the progress bar:
+	htmx.on(".settings", "htmx:xhr:progress", function (evt) {
+		htmx.find("#progress").setAttribute("value", (evt.detail.loaded / evt.detail.total) * 100);
+	});
+</script>

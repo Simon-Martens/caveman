@@ -1,0 +1,24 @@
+{{define "setup-templates"}}
+<template id="setup-header" simple>
+	  <div class="text-2xl text-center mt-16 fancy">
+        <span><slot name="number"></span>
+	  </div>
+    <h1 class="font-script text-9xl text-center mt-8 mb-4"><slot name="title"></slot></h1>
+	  <div class="subtitle mt-8 text-center">
+		    <slot name="description"></slot>
+    </div>
+</template>
+<template id="setup-columns" simple>
+  <div class="max-w-screen-xl flex flex-row items-start mx-auto mt-8 setup-columns">
+    <div class="w-4/12 grow-0 shrink-0 self-top flex flex-col mr-4">
+	<h2 class="text-3xl font-serif font-bold text-right pr-4 border-r-4 border-slate-300 text-slate-700">
+	  <slot name="header"></slot>
+	</h2>
+	<p class="text-slate-700"><slot name="description"></slot></p>
+      </div>
+      <div class="grow hyphens-auto">
+	<slot name="right"></slot>
+      </div>
+  </div>
+</template>
+{{end}}
