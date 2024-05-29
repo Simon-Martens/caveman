@@ -1,10 +1,19 @@
 package app
 
 import (
+	"context"
+	"database/sql"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/Simon-Martens/caveman/db"
 	"github.com/Simon-Martens/caveman/frontend"
 	"github.com/Simon-Martens/caveman/models"
 	"github.com/Simon-Martens/caveman/tools/store"
 	"github.com/Simon-Martens/caveman/tools/templates"
+	"github.com/fatih/color"
 
 	"github.com/spf13/cobra"
 )
@@ -14,6 +23,16 @@ const (
 	STORE_KEY_SETUP_STATE = "setup"
 	STATIC_FILEPATH       = "./frontend/assets"
 	ROUTES_FILEPATH       = "./frontend/routes"
+
+	DEFAULT_DATA_MAX_OPEN_CONNS int = 120
+	DEFAULT_DATA_MAX_IDLE_CONNS int = 20
+	DEFAULT_LOGS_MAX_OPEN_CONNS int = 10
+	DEFAULT_LOGS_MAX_IDLE_CONNS int = 2
+
+	DEFAULT_LOCAL_STORAGE_DIR_NAME string = "storage"
+	DEFAULT_BACKUPS_DIR_NAME       string = "backups"
+
+	DEFAULT_DATA_FILE_NAME string = "data.db"
 )
 
 type App struct {
@@ -22,6 +41,7 @@ type App struct {
 	registry *templates.Registry
 	store    *store.Store[any]
 	settings *models.Settings
+	logger   *slog.Logger
 }
 
 func New(sets models.Settings) *App {
@@ -33,6 +53,28 @@ func New(sets models.Settings) *App {
 func (a *App) Bootstrap() error {
 	a.registry = templates.NewRegistry(frontend.RoutesFS)
 	a.store = store.New(map[string]interface{}{})
+
+	// clear resources of previous core state (if any)
+	if err := a.ResetBootstrapState(); err != nil {
+		return err
+	}
+
+	// ensure that data dir exist
+	if err := os.MkdirAll(a.settings.DataDir, os.ModePerm); err != nil {
+		return err
+	}
+
+	if err := a.initDataDB(); err != nil {
+		return err
+	}
+
+	// if err := a.initLogsDB(); err != nil {
+	// 	return err
+	// }
+	//
+	// if err := a.initLogger(); err != nil {
+	// 	return err
+	// }
 
 	_ = a.RefreshSetupState()
 	_, _ = a.RefreshSettings()
@@ -91,6 +133,11 @@ func (a *App) IsBootstrapped() bool {
 	return a.store != nil
 }
 
+func (a *App) ResetBootstrapState() error {
+	// TODO:
+	return nil
+}
+
 func (a *App) Settings() *models.Settings {
 	if a.settings == nil {
 		a.RefreshSettings()
@@ -108,4 +155,56 @@ func (a *App) RefreshSettings() (*models.Settings, error) {
 	// a.settings = settings
 
 	return nil, nil
+}
+
+// Logger returns the default app logger.
+//
+// If the application is not bootstrapped yet, fallbacks to slog.Default().
+func (app *App) Logger() *slog.Logger {
+	if app.logger == nil {
+		return slog.Default()
+	}
+
+	return app.logger
+}
+
+// IsDev returns true if the application is running in development mode.
+func (app *App) IsDev() bool {
+	return app.Settings().Dev
+}
+
+func (app *App) initDataDB() error {
+	maxOpenConns := DEFAULT_DATA_MAX_OPEN_CONNS
+	maxIdleConns := DEFAULT_DATA_MAX_IDLE_CONNS
+
+	concurrentDB, err := db.ConnectDB(filepath.Join(app.settings.DataDir, DEFAULT_DATA_FILE_NAME))
+	if err != nil {
+		return err
+	}
+	concurrentDB.DB().SetMaxOpenConns(maxOpenConns)
+	concurrentDB.DB().SetMaxIdleConns(maxIdleConns)
+	concurrentDB.DB().SetConnMaxIdleTime(3 * time.Minute)
+
+	nonconcurrentDB, err := db.ConnectDB(filepath.Join(app.settings.DataDir, DEFAULT_DATA_FILE_NAME))
+	if err != nil {
+		return err
+	}
+	nonconcurrentDB.DB().SetMaxOpenConns(1)
+	nonconcurrentDB.DB().SetMaxIdleConns(1)
+	nonconcurrentDB.DB().SetConnMaxIdleTime(3 * time.Minute)
+
+	if app.IsDev() {
+		nonconcurrentDB.QueryLogFunc = func(ctx context.Context, t time.Duration, sql string, rows *sql.Rows, err error) {
+			color.HiBlack("[%.2fms] %v\n", float64(t.Milliseconds()), sql)
+		}
+		nonconcurrentDB.ExecLogFunc = func(ctx context.Context, t time.Duration, sql string, result sql.Result, err error) {
+			color.HiBlack("[%.2fms] %v\n", float64(t.Milliseconds()), sql)
+		}
+		concurrentDB.QueryLogFunc = nonconcurrentDB.QueryLogFunc
+		concurrentDB.ExecLogFunc = nonconcurrentDB.ExecLogFunc
+	}
+
+	app.dao = app.createDaoWithHooks(concurrentDB, nonconcurrentDB)
+
+	return nil
 }
