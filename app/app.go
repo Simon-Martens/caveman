@@ -24,19 +24,23 @@ type App struct {
 	settings *models.Settings
 }
 
-func New(isDev bool, baseDir string) (*App, error) {
+func New(sets models.Settings) *App {
 
 	app := &App{}
-	return app.Bootstrap()
+	return app
 }
 
-func (a *App) Bootstrap() (*App, error) {
+func (a *App) Bootstrap() error {
 	a.registry = templates.NewRegistry(frontend.RoutesFS)
 	a.store = store.New(map[string]interface{}{})
 
 	_ = a.RefreshSetupState()
 	_, _ = a.RefreshSettings()
-	return a, nil
+	return nil
+}
+
+func (a *App) Terminate() error {
+	return nil
 }
 
 func (a *App) RefreshSetupState() int {
@@ -81,6 +85,10 @@ func (a *App) SetupState() int {
 
 func (a *App) Registry() *templates.Registry {
 	return a.registry
+}
+
+func (a *App) IsBootstrapped() bool {
+	return a.store != nil
 }
 
 func (a *App) Settings() *models.Settings {

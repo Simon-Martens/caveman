@@ -10,6 +10,7 @@ import (
 
 	"github.com/Simon-Martens/caveman/app"
 	"github.com/Simon-Martens/caveman/cmd"
+	"github.com/Simon-Martens/caveman/models"
 	"github.com/Simon-Martens/caveman/tools/list"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -18,54 +19,36 @@ import (
 // Version of Caveman
 var Version = "(untracked)"
 
-// Caveman defines a Caveman app launcher.
-//
-// It ebends the App + startup config and all of the app methods
-// can be accessed directly through the instance (eg. Caveman.DataDir()).
+// Caveman defines a Caveman apppplication
+// It embeds the App methods (providing all kinds of low-level access)
+// But here are some higher-level methods given for convenience. Also,
+// the user can give a custom settings struct to run the app with, that
+// optionally can be saved as the most recent settings into the DB.
 type Caveman struct {
 	*app.App
 
-	devFlag     bool
-	dataDirFlag string
-
-	// RootCmd is the main console command
-	RootCmd *cobra.Command
+	RootCmd         *cobra.Command
+	StartupSettings models.Settings
 }
 
-// Config is the Caveman initialization config struct.
-type Config struct {
-	DefaultDev     bool
-	DefaultDataDir string // if not set, it will fallback to "./cm_data"
-}
-
-// New creates a new Caveman instance with the default configuration.
-// Use [NewWithConfig()] if you want to provide a custom configuration.
-//
-// Note that the application will not be initialized/bootstrapped yet,
-// aka. DB connections, migrations, app settings, etc. will not be accessible.
-// Everything will be initialized when [Start()] is executed.
-// If you want to initialize the application before calling [Start()],
-// then you'll have to manually call [Bootstrap()].
+// Creates a new Caveman instance with either the
+// - latest settings from the DB
+// - or the default settings if no settings are found.
 func New() *Caveman {
-	_, isUsingGoRun := inspectRuntime()
-
-	return NewWithConfig(Config{
-		DefaultDev: isUsingGoRun,
-	})
+	return NewWithSettings(models.Settings{})
 }
 
-// NewWithConfig creates a new Caveman instance with the provided config.
+// NewWithSettings creates a new Caveman instance with the provided config.
 //
 // Note that the application will not be initialized/bootstrapped yet,
 // aka. DB connections, migrations, app settings, etc. will not be accessible.
 // Everything will be initialized when [Start()] is executed.
 // If you want to initialize the application before calling [Start()],
 // then you'll have to manually call [Bootstrap()].
-func NewWithConfig(config Config) *Caveman {
-	// initialize a default data directory based on the executable baseDir
-	if config.DefaultDataDir == "" {
-		baseDir, _ := inspectRuntime()
-		config.DefaultDataDir = filepath.Join(baseDir, "cm_data")
+func NewWithSettings(settings models.Settings) *Caveman {
+	baseDir, dev := inspectRuntime()
+	if settings.DataDir == "" {
+		settings.DataDir = filepath.Join(baseDir, "cm_data")
 	}
 
 	cm := &Caveman{
@@ -76,33 +59,20 @@ func NewWithConfig(config Config) *Caveman {
 			FParseErrWhitelist: cobra.FParseErrWhitelist{
 				UnknownFlags: true,
 			},
-			// no need to provide the default cobra completion command
 			CompletionOptions: cobra.CompletionOptions{
 				DisableDefaultCmd: true,
 			},
 		},
-		devFlag:     config.DefaultDev,
-		dataDirFlag: config.DefaultDataDir,
+		StartupSettings: settings,
 	}
 
-	// replace with a colored stderr writer
 	cm.RootCmd.SetErr(newErrWriter())
 
 	// parse base flags
-	// (errors are ignored, since the full flags parsing happens on Execute())
-	cm.eagerParseFlags(&config)
+	cm.eagerParseFlags(dev)
 
-	// initialize the app instance
-	app, err := app.New(cm.devFlag, cm.dataDirFlag)
+	cm.App = app.New(cm.StartupSettings)
 
-	if err != nil {
-		cm.RootCmd.Println("Error initializing the application:", err)
-		os.Exit(1)
-	}
-
-	cm.App = app
-
-	// hide the default help command (allow only `--help` flag)
 	cm.RootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
 
 	return cm
@@ -111,19 +81,14 @@ func NewWithConfig(config Config) *Caveman {
 // Start starts the application, aka. registers the default system
 // commands (serve, migrate, version) and executes cm.RootCmd.
 func (cm *Caveman) Start() error {
-	// register system commands
 	cm.RootCmd.AddCommand(cmd.CmdServe(cm.App))
-
 	return cm.Execute()
 }
 
 // Execute initializes the application (if not already) and executes
 // the cm.RootCmd with graceful shutdown support.
-//
-// This method differs from cm.Start() by not registering the default
-// system commands!
 func (cm *Caveman) Execute() error {
-	if !cm.skicmootstrap() {
+	if !cm.skipBootstrap() {
 		if err := cm.Bootstrap(); err != nil {
 			return err
 		}
@@ -131,7 +96,7 @@ func (cm *Caveman) Execute() error {
 
 	done := make(chan bool, 1)
 
-	// listen for interrupt signal to gracefully shutdown the application
+	// gracefully shutdown the application on interrupt signals
 	go func() {
 		sigch := make(chan os.Signal, 1)
 		signal.Notify(sigch, os.Interrupt, syscall.SIGTERM)
@@ -140,9 +105,7 @@ func (cm *Caveman) Execute() error {
 		done <- true
 	}()
 
-	// execute the root command
 	go func() {
-		// note: leave to the commands to decide whether to print their error
 		cm.RootCmd.Execute()
 
 		done <- true
@@ -154,20 +117,18 @@ func (cm *Caveman) Execute() error {
 	return cm.Terminate()
 }
 
-// eagerParseFlags parses the global app flags before calling cm.RootCmd.Execute().
-// so we can have all Caveman flags ready for use on initialization.
-func (cm *Caveman) eagerParseFlags(config *Config) error {
+func (cm *Caveman) eagerParseFlags(devMode bool) error {
 	cm.RootCmd.PersistentFlags().StringVar(
-		&cm.dataDirFlag,
+		&cm.StartupSettings.DataDir,
 		"dir",
-		config.DefaultDataDir,
+		"cm_data",
 		"the Caveman data directory",
 	)
 
 	cm.RootCmd.PersistentFlags().BoolVar(
-		&cm.devFlag,
+		&cm.StartupSettings.Dev,
 		"dev",
-		config.DefaultDev,
+		devMode,
 		"enable dev mode, aka. printing logs and sql statements to the console",
 	)
 
@@ -179,7 +140,7 @@ func (cm *Caveman) eagerParseFlags(config *Config) error {
 // - is unknown command
 // - is the default help command
 // - is the default version command
-func (cm *Caveman) skicmootstrap() bool {
+func (cm *Caveman) skipBootstrap() bool {
 	flags := []string{
 		"-h",
 		"--help",
