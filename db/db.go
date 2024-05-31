@@ -23,3 +23,18 @@ func New(filepath string) (*DB, error) {
 		NonConcurrentDB: nonconcurrentDB,
 	}, nil
 }
+
+func (db *DB) Close() error {
+	if db.ConcurrentDB != nil {
+		if err := db.ConcurrentDB.Close(); err != nil {
+			return err
+		}
+	}
+
+	if db.NonConcurrentDB != nil {
+		if err := db.NonConcurrentDB.Close(); err != nil {
+			return err
+		}
+	}
+	return nil
+}

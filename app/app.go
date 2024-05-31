@@ -1,6 +1,7 @@
 package app
 
 import (
+	"log"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -48,7 +49,10 @@ type App struct {
 
 func New(sets models.Config) *App {
 
-	app := &App{}
+	app := &App{
+		dataDir: sets.DataDir,
+		isDev:   sets.Dev,
+	}
 	return app
 }
 
@@ -62,6 +66,7 @@ func (a *App) Bootstrap() error {
 	}
 
 	// ensure that data dir exist
+	log.Println("Data dir: ", a.dataDir)
 	if err := os.MkdirAll(a.dataDir, os.ModePerm); err != nil {
 		return err
 	}
@@ -84,6 +89,12 @@ func (a *App) Bootstrap() error {
 }
 
 func (a *App) Terminate() error {
+	if a.db != nil {
+		if err := a.db.Close(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
