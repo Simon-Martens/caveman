@@ -11,7 +11,7 @@ func NewMux(app *app.App) *echo.Echo {
 	mux := echo.New()
 
 	// Set auth, role and HTMX headers
-	mux.Use(IntoRequestContext(app))
+	// mux.Use(IntoRequestContext(app))
 
 	mux.HTTPErrorHandler = ErrorHandler
 
@@ -19,7 +19,7 @@ func NewMux(app *app.App) *echo.Echo {
 	mux.Use(middleware.Recover())
 	mux.Use(middleware.Secure())
 	mux.Use(middleware.RemoveTrailingSlashWithConfig(
-		middleware.RemoveTrailingSlashConfig{
+		middleware.TrailingSlashConfig{
 			RedirectCode: 301,
 		},
 	))

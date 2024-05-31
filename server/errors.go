@@ -28,7 +28,7 @@ func (e PCError) Error() string {
 	return "Internal Server Error"
 }
 
-func ErrorHandler(c echo.Context, err error) {
+func ErrorHandler(err error, c echo.Context) {
 	if err == nil || c.Response().Committed {
 		return
 	}

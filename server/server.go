@@ -18,7 +18,7 @@ import (
 // https://grafana.com/blog/2024/02/09/how-i-write-http-services-in-go-after-13-years/
 func Serve(ctx context.Context, app *app.App) error {
 	mux := NewMux(app)
-	AddRoutes(mux, app)
+	// AddRoutes(mux, app)
 	httpServer := NewServer(mux)
 
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)

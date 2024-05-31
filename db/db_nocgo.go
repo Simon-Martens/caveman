@@ -3,6 +3,7 @@
 package db
 
 import (
+	"github.com/jmoiron/sqlx"
 	"github.com/pocketbase/dbx"
 	_ "modernc.org/sqlite"
 )
@@ -13,7 +14,8 @@ func ConnectDB(dbPath string) (*dbx.DB, error) {
 	// is set in case it hasn't been already set by another connection.
 	pragmas := "?_pragma=busy_timeout(10000)&_pragma=journal_mode(WAL)&_pragma=journal_size_limit(200000000)&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(ON)&_pragma=temp_store(MEMORY)&_pragma=cache_size(-16000)"
 
-	db, err := dbx.Open("sqlite", dbPath+pragmas)
+	db := sqlx.Open("sqlite", dbPath+pragmas)
+	err := db.Ping()
 	if err != nil {
 		return nil, err
 	}

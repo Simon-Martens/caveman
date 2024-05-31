@@ -9,7 +9,10 @@ type Settings struct {
 	URL     string `json:"url"`
 	Edition string `json:"edition"`
 	Contact string `json:"contact"`
+}
 
-	DataDir string `json:"data_dir"`
+type Config struct {
+	*Settings
 	Dev     bool   `json:"dev"`
+	DataDir string `json:"data"`
 }

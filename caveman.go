@@ -28,14 +28,14 @@ type Caveman struct {
 	*app.App
 
 	RootCmd         *cobra.Command
-	StartupSettings models.Settings
+	StartupSettings models.Config
 }
 
 // Creates a new Caveman instance with either the
 // - latest settings from the DB
 // - or the default settings if no settings are found.
 func New() *Caveman {
-	return NewWithSettings(models.Settings{})
+	return NewWithSettings(models.Config{})
 }
 
 // NewWithSettings creates a new Caveman instance with the provided config.
@@ -45,7 +45,7 @@ func New() *Caveman {
 // Everything will be initialized when [Start()] is executed.
 // If you want to initialize the application before calling [Start()],
 // then you'll have to manually call [Bootstrap()].
-func NewWithSettings(settings models.Settings) *Caveman {
+func NewWithSettings(settings models.Config) *Caveman {
 	baseDir, dev := inspectRuntime()
 	if settings.DataDir == "" {
 		settings.DataDir = filepath.Join(baseDir, "cm_data")
@@ -68,8 +68,8 @@ func NewWithSettings(settings models.Settings) *Caveman {
 
 	cm.RootCmd.SetErr(newErrWriter())
 
-	// parse base flags
-	cm.eagerParseFlags(dev)
+	// if dev is false up until this point, then the default dev mode can overwrite
+	cm.eagerParseFlags(dev || app.DEFAULT_DEV_MODE)
 
 	cm.App = app.New(cm.StartupSettings)
 
@@ -85,8 +85,6 @@ func (cm *Caveman) Start() error {
 	return cm.Execute()
 }
 
-// Execute initializes the application (if not already) and executes
-// the cm.RootCmd with graceful shutdown support.
 func (cm *Caveman) Execute() error {
 	if !cm.skipBootstrap() {
 		if err := cm.Bootstrap(); err != nil {
@@ -117,19 +115,19 @@ func (cm *Caveman) Execute() error {
 	return cm.Terminate()
 }
 
-func (cm *Caveman) eagerParseFlags(devMode bool) error {
+func (cm *Caveman) eagerParseFlags(dev bool) error {
 	cm.RootCmd.PersistentFlags().StringVar(
 		&cm.StartupSettings.DataDir,
 		"dir",
-		"cm_data",
+		app.DEFAULT_DATA_DIR_NAME,
 		"the Caveman data directory",
 	)
 
 	cm.RootCmd.PersistentFlags().BoolVar(
 		&cm.StartupSettings.Dev,
 		"dev",
-		devMode,
-		"enable dev mode, aka. printing logs and sql statements to the console",
+		dev,
+		"print logs and sql statements to the console",
 	)
 
 	return cm.RootCmd.ParseFlags(os.Args[1:])
