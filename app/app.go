@@ -7,31 +7,14 @@ import (
 	"path/filepath"
 
 	"github.com/Simon-Martens/caveman/db"
+	"github.com/Simon-Martens/caveman/db/sessions"
+	"github.com/Simon-Martens/caveman/db/users"
 	"github.com/Simon-Martens/caveman/frontend"
 	"github.com/Simon-Martens/caveman/models"
 	"github.com/Simon-Martens/caveman/tools/store"
 	"github.com/Simon-Martens/caveman/tools/templates"
 
 	"github.com/spf13/cobra"
-)
-
-const (
-	VERSION               = "0.1.0"
-	STORE_KEY_SETUP_STATE = "setup"
-	STATIC_FILEPATH       = "./frontend/assets"
-	ROUTES_FILEPATH       = "./frontend/routes"
-
-	DEFAULT_DATA_MAX_OPEN_CONNS int = 120
-	DEFAULT_DATA_MAX_IDLE_CONNS int = 20
-	DEFAULT_LOGS_MAX_OPEN_CONNS int = 10
-	DEFAULT_LOGS_MAX_IDLE_CONNS int = 2
-
-	DEFAULT_LOCAL_STORAGE_DIR_NAME string = "storage"
-	DEFAULT_BACKUPS_DIR_NAME       string = "backups"
-
-	DEFAULT_DEV_MODE       bool   = false
-	DEFAULT_DATA_DIR_NAME  string = "cm_data"
-	DEFAULT_DATA_FILE_NAME string = "data.db"
 )
 
 type App struct {
@@ -42,6 +25,9 @@ type App struct {
 	settings *models.Settings
 	logger   *slog.Logger
 	db       *db.DB
+
+	users    *users.UserManager
+	sessions *sessions.SessionManager
 
 	isDev   bool
 	dataDir string
@@ -56,14 +42,23 @@ func New(sets models.Config) *App {
 	return app
 }
 
+// Bootstrap initializes the application, including
+// - database
+// - store (a in memory key-value store)
+// - logger
+// - settings
+// - built-in template registry
+// We do not load user defined templates here; also no routes or middleware
+// as the server is seperately initialized.
 func (a *App) Bootstrap() error {
-	a.registry = templates.NewRegistry(frontend.RoutesFS)
-	a.store = store.New(map[string]interface{}{})
 
 	// clear resources of previous core state (if any)
 	if err := a.ResetBootstrapState(); err != nil {
 		return err
 	}
+
+	a.registry = templates.NewRegistry(frontend.RoutesFS)
+	a.store = store.New(map[string]interface{}{})
 
 	// ensure that data dir exist
 	log.Println("Data dir: ", a.dataDir)
@@ -79,12 +74,29 @@ func (a *App) Bootstrap() error {
 	// 	return err
 	// }
 	//
-	// if err := a.initLogger(); err != nil {
-	// 	return err
-	// }
+	if err := a.initLogger(); err != nil {
+		return err
+	}
 
 	_ = a.RefreshSetupState()
 	_, _ = a.RefreshSettings()
+
+	um, err := users.New(a.db, models.DEFAULT_USERS_TABLE_NAME, models.DEFAULT_ID_FIELD)
+	if err != nil {
+		return err
+	}
+	a.users = um
+
+	sm, err := sessions.New(
+		a.db,
+		models.DEFAULT_SESSIONS_TABLE_NAME,
+		models.DEFAULT_USERS_TABLE_NAME,
+		models.DEFAULT_ID_FIELD)
+	if err != nil {
+		return err
+	}
+	a.sessions = sm
+
 	return nil
 }
 
@@ -93,6 +105,10 @@ func (a *App) Terminate() error {
 		if err := a.db.Close(); err != nil {
 			return err
 		}
+	}
+
+	if a.logger != nil {
+
 	}
 
 	return nil
@@ -127,7 +143,7 @@ func (a *App) RefreshSetupState() int {
 }
 
 func (a *App) SetupState() int {
-	s := a.store.Get(STORE_KEY_SETUP_STATE)
+	s := a.store.Get(models.STORE_KEY_SETUP_STATE)
 	if s == nil {
 		s = a.RefreshSetupState()
 	}
@@ -143,11 +159,21 @@ func (a *App) Registry() *templates.Registry {
 }
 
 func (a *App) IsBootstrapped() bool {
-	return a.store != nil
+	return a.store != nil || a.db != nil || a.logger != nil || a.registry != nil
 }
 
 func (a *App) ResetBootstrapState() error {
-	// TODO:
+	a.store = nil
+	a.logger = nil
+	a.registry = nil
+
+	// We do this last since it can err
+	if a.db != nil {
+		if err := a.db.Close(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -187,29 +213,42 @@ func (app *App) IsDev() bool {
 }
 
 func (app *App) initDataDB() error {
-	// maxOpenConns := DEFAULT_DATA_MAX_OPEN_CONNS
-	// maxIdleConns := DEFAULT_DATA_MAX_IDLE_CONNS
-
-	db, err := db.New(filepath.Join(app.dataDir, DEFAULT_DATA_FILE_NAME))
+	p := filepath.Join(app.dataDir, models.DEFAULT_DATA_FILE_NAME)
+	db, err := db.New(p, models.DEFAULT_DATA_MAX_OPEN_CONNS, models.DEFAULT_DATA_MAX_IDLE_CONNS)
 	if err != nil {
 		return err
 	}
 
 	app.db = db
 
-	// if app.IsDev() {
-	// 	nonconcurrentDB.QueryLogFunc = func(ctx context.Context, t time.Duration, sql string, rows *sql.Rows, err error) {
-	// 		color.HiBlack("[%.2fms] %v\n", float64(t.Milliseconds()), sql)
-	// 	}
-	// 	nonconcurrentDB.ExecLogFunc = func(ctx context.Context, t time.Duration, sql string, result sql.Result, err error) {
-	// 		color.HiBlack("[%.2fms] %v\n", float64(t.Milliseconds()), sql)
-	// 	}
-	// 	concurrentDB.QueryLogFunc = nonconcurrentDB.QueryLogFunc
-	// 	concurrentDB.ExecLogFunc = nonconcurrentDB.ExecLogFunc
-	// }
-	//
-	// app.dao = app.createDaoWithHooks(concurrentDB, nonconcurrentDB)
-	//
-	// return nil
+	if app.isDev {
+		db.ConnectLogger()
+	}
+
 	return nil
+}
+
+func (app *App) Sessions() *sessions.SessionManager {
+	return app.sessions
+}
+
+func (app *App) Users() *users.UserManager {
+	return app.users
+}
+
+func (app *App) initLogger() error {
+	// TODO: create a handler, to write logs to the db
+
+	app.logger = slog.Default()
+
+	return nil
+
+}
+
+func (app *App) DataDir() string {
+	return app.dataDir
+}
+
+func (app *App) DB() *db.DB {
+	return app.db
 }

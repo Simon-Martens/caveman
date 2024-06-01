@@ -15,12 +15,20 @@ func CmdServe(app *app.App) *cobra.Command {
 		Use:   "serve",
 		Short: "Start the web server",
 		Run: func(cmd *cobra.Command, args []string) {
-			ctx := context.Background()
-			if err := server.Serve(ctx, app); err != nil {
+			if err := Serve(app); err != nil {
 				fmt.Fprintf(os.Stderr, "%s\n", err)
 				os.Exit(1)
 			}
 		},
 	}
 	return serveCmd
+}
+
+func Serve(app *app.App) error {
+	app.Logger().Info("Starting server...")
+	ctx := context.Background()
+	if err := server.Serve(ctx, app); err != nil {
+		return err
+	}
+	return nil
 }

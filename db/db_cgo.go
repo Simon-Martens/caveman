@@ -5,8 +5,8 @@ package db
 import (
 	"database/sql"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/mattn/go-sqlite3"
+	"github.com/pocketbase/dbx"
 )
 
 func init() {
@@ -38,9 +38,8 @@ func init() {
 	)
 }
 
-func ConnectDB(dbPath string) (*sqlx.DB, error) {
-	db := sqlx.MustOpen("cm_sqlite3", dbPath)
-	err := db.Ping()
+func ConnectDB(dbPath string) (*dbx.DB, error) {
+	db, err := dbx.MustOpen("cm_sqlite3", dbPath)
 	if err != nil {
 		return nil, err
 	}

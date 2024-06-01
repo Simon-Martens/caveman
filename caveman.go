@@ -16,9 +16,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Version of Caveman
-var Version = "(untracked)"
-
 // Caveman defines a Caveman apppplication
 // It embeds the App methods (providing all kinds of low-level access)
 // But here are some higher-level methods given for convenience. Also,
@@ -55,7 +52,7 @@ func NewWithSettings(settings models.Config) *Caveman {
 		RootCmd: &cobra.Command{
 			Use:     filepath.Base(os.Args[0]),
 			Short:   "Caveman CLI",
-			Version: Version,
+			Version: models.VERSION,
 			FParseErrWhitelist: cobra.FParseErrWhitelist{
 				UnknownFlags: true,
 			},
@@ -69,7 +66,7 @@ func NewWithSettings(settings models.Config) *Caveman {
 	cm.RootCmd.SetErr(newErrWriter())
 
 	// if dev is false up until this point, then the default dev mode can overwrite
-	cm.eagerParseFlags(dev || app.DEFAULT_DEV_MODE)
+	cm.eagerParseFlags(dev || models.DEFAULT_DEV_MODE)
 
 	cm.App = app.New(cm.StartupSettings)
 
@@ -104,6 +101,7 @@ func (cm *Caveman) Execute() error {
 	}()
 
 	go func() {
+		cm.Logger().Info("Caveman CLI v " + models.VERSION)
 		cm.RootCmd.Execute()
 
 		done <- true
@@ -119,7 +117,7 @@ func (cm *Caveman) eagerParseFlags(dev bool) error {
 	cm.RootCmd.PersistentFlags().StringVar(
 		&cm.StartupSettings.DataDir,
 		"dir",
-		app.DEFAULT_DATA_DIR_NAME,
+		models.DEFAULT_DATA_DIR_NAME,
 		"the Caveman data directory",
 	)
 

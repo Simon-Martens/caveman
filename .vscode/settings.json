@@ -1,0 +1,11 @@
+{
+    "sqltools.connections": [
+        {
+            "previewLimit": 50,
+            "driver": "SQLite",
+            "name": "Cavemand",
+            "database": "${workspaceFolder:caveman}/cm_data/data.db"
+        }
+    ],
+    "sqltools.useNodeRuntime": true
+}
