@@ -3,8 +3,13 @@ package users
 import (
 	"database/sql"
 	"errors"
+	"strconv"
+	"time"
 
 	"github.com/Simon-Martens/caveman/db"
+	"github.com/Simon-Martens/caveman/models"
+	"github.com/Simon-Martens/caveman/tools/types"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type UserManager struct {
@@ -56,11 +61,14 @@ func (s *UserManager) createTable(idfield string) error {
 			" (" + idfield + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
 			"email TEXT NOT NULL, " +
 			"name TEXT NOT NULL, " +
+			"avatar TEXT, " +
 			"password BLOB NOT NULL, " +
 			"role INTEGER DEFAULT 0, " +
-			"created_on INTEGER DEFAULT 0, " +
-			"modified_on INTEGER DEFAULT 0, " +
-			"expires_on INTEGER DEFAULT 0);",
+			"created INTEGER DEFAULT 0, " +
+			"modified INTEGER DEFAULT 0, " +
+			"expires INTEGER DEFAULT 0, " +
+			"active BOOLEAN DEFAULT TRUE, " +
+			"verified BOOLEAN DEFAULT FALSE);",
 	)
 
 	_, err := q.Execute()
@@ -68,5 +76,61 @@ func (s *UserManager) createTable(idfield string) error {
 		return err
 	}
 
+	q = ncdb.NewQuery(
+		"CREATE UNIQUE INDEX IF NOT EXISTS email_idx ON " +
+			tn +
+			"(email);")
+	_, err = q.Execute()
+	if err != nil {
+		return err
+	}
+
+	q = ncdb.NewQuery(
+		"CREATE UNIQUE INDEX IF NOT EXISTS " + idfield + "_idx ON " +
+			tn +
+			"(" + idfield + ");")
+
+	_, err = q.Execute()
+	if err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func (s *UserManager) Insert(user *User, pw string) error {
+	db := s.db.NonConcurrentDB()
+	hpw, err := bcrypt.GenerateFromPassword([]byte(pw), 12)
+	if err != nil {
+		return err
+	}
+	user.Password = string(hpw)
+
+	d := types.NowDateTime()
+	pusexp, _ := time.ParseDuration(strconv.Itoa(models.DEFAULT_USER_EXPIRATION) + "s")
+
+	user.Created = d
+	user.Modified = d
+	user.Expires = d.Add(pusexp)
+
+	err = db.Model(user).Insert()
+	return err
+}
+
+func (s *UserManager) HasAdmins() (bool, error) {
+	db := s.db.ConcurrentDB()
+	tn := db.QuoteTableName(s.table)
+
+	user := User{}
+	err := db.
+		NewQuery("SELECT id, role FROM " + tn + " WHERE role = 3").
+		One(&user)
+
+	if err == sql.ErrNoRows {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+
+	return user.ID > 0, nil
 }

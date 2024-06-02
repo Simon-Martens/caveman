@@ -30,6 +30,11 @@ type DateTime struct {
 	t time.Time
 }
 
+// Add adds the Duration to the DateTime and returns a new DateTime.
+func (d DateTime) Add(duration time.Duration) DateTime {
+	return DateTime{t: d.Time().Add(duration)}
+}
+
 // Time returns the internal [time.Time] instance.
 func (d DateTime) Time() time.Time {
 	return d.t
@@ -52,6 +57,10 @@ func (d DateTime) String() string {
 	return t.UTC().Format(DefaultDateLayout)
 }
 
+func (d DateTime) Int() int64 {
+	return d.t.Unix()
+}
+
 // MarshalJSON implements the [json.Marshaler] interface.
 func (d DateTime) MarshalJSON() ([]byte, error) {
 	return []byte(`"` + d.String() + `"`), nil
@@ -68,7 +77,7 @@ func (d *DateTime) UnmarshalJSON(b []byte) error {
 
 // Value implements the [driver.Valuer] interface.
 func (d DateTime) Value() (driver.Value, error) {
-	return d.String(), nil
+	return d.Int(), nil
 }
 
 // Scan implements [sql.Scanner] interface to scan the provided value
@@ -91,7 +100,11 @@ func (d *DateTime) Scan(value any) error {
 			d.t = t
 		}
 	case int, int64, int32, uint, uint64, uint32:
-		d.t = cast.ToTime(v)
+		if v == 0 {
+			d.t = time.Time{}
+		} else {
+			d.t = cast.ToTime(v)
+		}
 	default:
 		str := cast.ToString(v)
 		if str == "" {
