@@ -19,6 +19,8 @@ func TestUserManager(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	db.ConnectLogger()
+
 	um, err := New(db, models.DEFAULT_USERS_TABLE_NAME, models.DEFAULT_ID_FIELD)
 	if err != nil {
 		t.Fatal(err)

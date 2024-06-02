@@ -126,10 +126,6 @@ func (s *UserManager) SelectByEmail(email string) (*User, error) {
 		Bind(dbx.Params{"mail": email}).
 		One(&user)
 
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-
 	if err != nil {
 		return nil, err
 	}
@@ -167,13 +163,10 @@ func (s *UserManager) Insert(user *User, pw string) (*User, error) {
 		return nil, err
 	}
 	user.Password = string(hpw)
+	user.Record = models.NewRecord()
 
-	d := types.NowDateTime()
 	pusexp, _ := time.ParseDuration(strconv.Itoa(models.DEFAULT_USER_EXPIRATION) + "s")
-
-	user.Created = d
-	user.Modified = d
-	user.Expires = d.Add(pusexp)
+	user.Expires = user.Created.Add(pusexp)
 
 	err = db.Model(user).Insert()
 

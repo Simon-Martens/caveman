@@ -30,5 +30,7 @@ const (
 	DEFAULT_MIGRATIONS_TABLE_NAME string = "__migrations"
 	DEFAULT_ID_FIELD              string = "id"
 
-	DEFAULT_USER_EXPIRATION int = 60 * 60 * 24 * (365 * 10) // ~10 years
+	DEFAULT_USER_EXPIRATION          int = 60 * 60 * 24 * (365 * 10) // ~10 years
+	DEFAULT_SHORT_SESSION_EXPIRATION int = 60 * 60 * 2               // 2 hours
+	DEFAULT_LONG_SESSION_EXPIRATION  int = 60 * 60 * 24 * 30         // 30 days
 )
