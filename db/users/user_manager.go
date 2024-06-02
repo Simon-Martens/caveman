@@ -9,6 +9,7 @@ import (
 	"github.com/Simon-Martens/caveman/db"
 	"github.com/Simon-Martens/caveman/models"
 	"github.com/Simon-Martens/caveman/tools/types"
+	"github.com/pocketbase/dbx"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -98,11 +99,72 @@ func (s *UserManager) createTable(idfield string) error {
 	return nil
 }
 
-func (s *UserManager) Insert(user *User, pw string) error {
+func (s *UserManager) Select(id int) (*User, error) {
+	db := s.db.ConcurrentDB()
+	tn := db.QuoteTableName(s.table)
+
+	user := User{}
+	err := db.
+		NewQuery("SELECT * FROM " + tn + " WHERE id = {:id} LIMIT 1").
+		Bind(dbx.Params{"id": id}).
+		One(&user)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+func (s *UserManager) SelectByEmail(email string) (*User, error) {
+	db := s.db.ConcurrentDB()
+	tn := db.QuoteTableName(s.table)
+
+	user := User{}
+	err := db.
+		NewQuery("SELECT * FROM " + tn + " WHERE email = {:mail} LIMIT 1").
+		Bind(dbx.Params{"mail": email}).
+		One(&user)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+func (s *UserManager) CheckPassword(user *User, pw string) error {
+	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(pw))
+	return err
+}
+
+func (s *UserManager) CheckGetUser(email string, pw string) (*User, error) {
+	user, err := s.SelectByEmail(email)
+	if err != nil {
+		return nil, err
+	}
+
+	if user == nil {
+		return nil, nil
+	}
+
+	err = s.CheckPassword(user, pw)
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+func (s *UserManager) Insert(user *User, pw string) (*User, error) {
 	db := s.db.NonConcurrentDB()
 	hpw, err := bcrypt.GenerateFromPassword([]byte(pw), 12)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	user.Password = string(hpw)
 
@@ -114,6 +176,28 @@ func (s *UserManager) Insert(user *User, pw string) error {
 	user.Expires = d.Add(pusexp)
 
 	err = db.Model(user).Insert()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+func (s *UserManager) Update(user *User) error {
+	db := s.db.NonConcurrentDB()
+	user.Modified = types.NowDateTime()
+	err := db.Model(user).Update()
+	return err
+}
+
+func (s *UserManager) Delete(id int) error {
+	db := s.db.NonConcurrentDB()
+	q := db.
+		NewQuery("DELETE FROM " + db.QuoteTableName(s.table) + " WHERE id = {:id}").
+		Bind(dbx.Params{"id": id})
+
+	_, err := q.Execute()
 	return err
 }
 
@@ -123,7 +207,7 @@ func (s *UserManager) HasAdmins() (bool, error) {
 
 	user := User{}
 	err := db.
-		NewQuery("SELECT id, role FROM " + tn + " WHERE role = 3").
+		NewQuery("SELECT id, role FROM " + tn + " WHERE role = 3 LIMIT 1").
 		One(&user)
 
 	if err == sql.ErrNoRows {
