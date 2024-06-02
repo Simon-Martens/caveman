@@ -24,7 +24,8 @@ const (
 	DEFAULT_DATA_DIR_NAME  string = "cm_data"
 	DEFAULT_DATA_FILE_NAME string = "data.db"
 
-	DEFAULT_SESSIONS_TABLE_NAME string = "__sessions"
-	DEFAULT_USERS_TABLE_NAME    string = "__users"
-	DEFAULT_ID_FIELD            string = "id"
+	DEFAULT_SESSIONS_TABLE_NAME   string = "__sessions"
+	DEFAULT_USERS_TABLE_NAME      string = "__users"
+	DEFAULT_MIGRATIONS_TABLE_NAME string = "__migrations"
+	DEFAULT_ID_FIELD              string = "id"
 )

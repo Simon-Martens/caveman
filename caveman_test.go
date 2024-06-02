@@ -27,6 +27,8 @@ func TestStartup(t *testing.T) {
 
 	app := New()
 
+	app.Logger().Info("COMMAND: " + strings.Join(os.Args, " "))
+
 	if app == nil {
 		t.Fatal("Expected initialized PocketBase instance, got nil")
 	}
@@ -35,8 +37,8 @@ func TestStartup(t *testing.T) {
 		t.Fatal("Expected RootCmd to be initialized, got nil")
 	}
 
-	if app.DataDir() != "test_dir" {
-		t.Fatalf("Expected app.DataDir() %q, got %q", "test_dir", app.DataDir())
+	if app.DataDir() != "cm_test" {
+		t.Fatalf("Expected app.DataDir() %q, got %q", "cm_test", app.DataDir())
 	}
 
 	if app.IsDev() != true {
@@ -50,5 +52,4 @@ func TestStartup(t *testing.T) {
 		t.Error(err)
 	}
 
-	app.Logger().Info(strings.Join(os.Args, " "))
 }

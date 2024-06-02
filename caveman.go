@@ -10,9 +10,12 @@ import (
 
 	"github.com/Simon-Martens/caveman/app"
 	"github.com/Simon-Martens/caveman/cmd"
+	"github.com/Simon-Martens/caveman/migrations"
 	"github.com/Simon-Martens/caveman/models"
 	"github.com/Simon-Martens/caveman/tools/list"
+	"github.com/Simon-Martens/caveman/tools/migration"
 	"github.com/fatih/color"
+	"github.com/pocketbase/dbx"
 	"github.com/spf13/cobra"
 )
 
@@ -205,4 +208,31 @@ func (colored *coloredWriter) Write(p []byte) (n int, err error) {
 	defer colored.c.UnsetWriter(colored.w)
 
 	return colored.c.Print(string(p))
+}
+
+type migrationsConnection struct {
+	DB             *dbx.DB
+	MigrationsList migration.MigrationsList
+}
+
+func RunMigrations(app app.App) error {
+	connections := []migrationsConnection{
+		{
+			DB:             app.DB().NonConcurrentDB(),
+			MigrationsList: migrations.AppMigrations,
+		},
+	}
+
+	for _, c := range connections {
+		runner, err := migration.NewRunner(c.DB, c.MigrationsList)
+		if err != nil {
+			return err
+		}
+
+		if _, err := runner.Up(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
