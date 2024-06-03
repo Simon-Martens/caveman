@@ -10,8 +10,10 @@ require (
 	github.com/labstack/echo/v4 v4.12.0
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/pocketbase/dbx v1.10.1
+	github.com/rs/xid v1.5.0
 	github.com/spf13/cast v1.3.1
 	github.com/spf13/cobra v1.8.0
+	golang.org/x/crypto v0.22.0
 	modernc.org/sqlite v1.29.10
 )
 
@@ -39,7 +41,6 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
-	golang.org/x/crypto v0.22.0 // indirect
 	golang.org/x/net v0.24.0 // indirect
 	golang.org/x/sys v0.19.0 // indirect
 	golang.org/x/term v0.19.0 // indirect

@@ -2,8 +2,10 @@ package sessions
 
 import (
 	"crypto/rand"
+	"crypto/sha512"
 	"database/sql"
 	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"strconv"
 	"time"
@@ -13,20 +15,11 @@ import (
 	"github.com/pocketbase/dbx"
 )
 
-type SessionExpiredErr struct{}
-
-func (e SessionExpiredErr) Error() string {
-	return "session expired"
-}
+var ErrSessionExpired = errors.New("session expired")
+var ErrSessionNotFound = errors.New("session not found")
 
 type SessionManager struct {
-	db *db.DB
-
-	stmtInsert *sql.Stmt
-	stmtDelete *sql.Stmt
-	stmtUpdate *sql.Stmt
-	stmtSelect *sql.Stmt
-
+	db      *db.DB
 	table   string
 	idfield string
 }
@@ -69,11 +62,12 @@ func (s *SessionManager) createTable(usertable, idfield string) error {
 			" (" + idfield + " INTEGER PRIMARY KEY NOT NULL, " +
 			"session BLOB NOT NULL, " +
 			"session_data STRING, " +
+			"resource STRING, " +
 			"created INTEGER DEFAULT 0, " +
 			"modified INTEGER DEFAULT 0, " +
 			"expires INTEGER DEFAULT 0, " +
-			"user_id INTEGER NOT NULL, " +
-			"FOREIGN KEY(user) REFERENCES " + utn + "(" + idfield + "));",
+			"user_id INTEGER, " +
+			"FOREIGN KEY(user_id) REFERENCES " + utn + "(" + idfield + "));",
 	)
 
 	_, err := q.Execute()
@@ -81,16 +75,17 @@ func (s *SessionManager) createTable(usertable, idfield string) error {
 		return err
 	}
 
-	q = ncdb.NewQuery(
-		"CREATE UNIQUE INDEX IF NOT EXISTS session_idx ON " + tn + "(session);")
-	_, err = q.Execute()
+	err = s.db.CreateUniqueIndex(s.table, "session")
 	if err != nil {
 		return err
 	}
 
-	q = ncdb.NewQuery(
-		"CREATE INDEX IF NOT EXISTS user_session_idx ON " + tn + "(user_id);")
-	_, err = q.Execute()
+	err = s.db.CreateIndex(s.table, "user_id")
+	if err != nil {
+		return err
+	}
+
+	err = s.db.CreateIndex(s.table, "resource")
 	if err != nil {
 		return err
 	}
@@ -98,12 +93,17 @@ func (s *SessionManager) createTable(usertable, idfield string) error {
 	return nil
 }
 
-func (s *SessionManager) Insert(user int, short bool) (*Session, error) {
+func (s *SessionManager) Insert(user int64, short bool) (*Session, error) {
 	n := Session{
 		Record: models.NewRecord(),
 	}
 
-	n.User = user
+	u := sql.NullInt64{}
+	err := u.Scan(user)
+	if err != nil {
+		return nil, err
+	}
+	n.User = u
 
 	var dexp time.Duration
 	if short {
@@ -114,7 +114,7 @@ func (s *SessionManager) Insert(user int, short bool) (*Session, error) {
 
 	n.Expires = n.Created.Add(dexp)
 
-	tok, err := createRandomToken()
+	tok, err := CreateRandomToken()
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +130,37 @@ func (s *SessionManager) Insert(user int, short bool) (*Session, error) {
 	return &n, nil
 }
 
-func (s *SessionManager) Delete(session string) error {
+func (s *SessionManager) InsertResource(res string) (*Session, error) {
+	n := Session{
+		Record: models.NewRecord(),
+	}
+
+	dexp, _ := time.ParseDuration(strconv.Itoa(models.DEFAULT_RESOURCE_SESSION_EXPIRATION) + "s")
+	n.Expires = n.Created.Add(dexp)
+
+	tok, err := CreateRandomToken()
+	if err != nil {
+		return nil, err
+	}
+
+	n.Session = tok
+	r := sql.NullString{}
+	err = r.Scan(res)
+	if err != nil {
+		return nil, err
+	}
+	n.Resource = r
+
+	db := s.db.NonConcurrentDB()
+	err = db.Model(&n).Insert()
+	if err != nil {
+		return nil, err
+	}
+
+	return &n, nil
+}
+
+func (s *SessionManager) DeleteBySession(session string) error {
 	db := s.db.NonConcurrentDB()
 	tn := db.QuoteTableName(s.table)
 
@@ -142,7 +172,7 @@ func (s *SessionManager) Delete(session string) error {
 	return err
 }
 
-func (s *SessionManager) Select(session string) (*Session, error) {
+func (s *SessionManager) SelectBySession(session string) (*Session, error) {
 	db := s.db.ConcurrentDB()
 	tn := db.QuoteTableName(s.table)
 
@@ -154,13 +184,24 @@ func (s *SessionManager) Select(session string) (*Session, error) {
 		One(&se)
 
 	if err != nil {
-		return nil, err
+		return nil, ErrSessionNotFound
+	}
+
+	if se.Expires.Time().Before(time.Now()) {
+		s.DeleteBySession(se.Session)
+		return nil, ErrSessionExpired
 	}
 
 	return &se, nil
 }
 
-func createRandomToken() (string, error) {
+func CreateRandomToken() (string, error) {
+	// We use 256 bits of crypto/rand to generate a random token
+	// We append the timestamp to make sure our seed is unique
+	// Then we hash the result with sha512
+	t := make([]byte, binary.MaxVarintLen64)
+	_ = binary.PutVarint(t, time.Now().Unix())
+
 	c := 256
 	b := make([]byte, c)
 
@@ -168,6 +209,11 @@ func createRandomToken() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	bas := base64.URLEncoding.EncodeToString(b)
+
+	all := append(b, t...)
+	hash := sha512.Sum512(all)
+
+	// Sadly, 64 bits dont align to 6 bits, so there will be some padding
+	bas := base64.URLEncoding.EncodeToString(hash[:])
 	return bas, nil
 }

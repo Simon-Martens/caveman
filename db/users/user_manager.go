@@ -10,17 +10,18 @@ import (
 	"github.com/Simon-Martens/caveman/models"
 	"github.com/Simon-Martens/caveman/tools/types"
 	"github.com/pocketbase/dbx"
+	"github.com/rs/xid"
 	"golang.org/x/crypto/bcrypt"
 )
 
+// TODO: bcrypt has a size limit of 72 bytes for the password. This should be checked and handled.
+// Otherwise, switch to argon2id, and save the salt along with the hash in the table.
+var ErrUserNotFound = errors.New("user not found")
+var ErrWrongPassword = errors.New("wrong password")
+var ErrHIDChanged = errors.New("HID is not allowed to be changed")
+
 type UserManager struct {
-	db *db.DB
-
-	stmtInsert *sql.Stmt
-	stmtDelete *sql.Stmt
-	stmtUpdate *sql.Stmt
-	stmtSelect *sql.Stmt
-
+	db      *db.DB
 	table   string
 	idfield string
 }
@@ -60,8 +61,10 @@ func (s *UserManager) createTable(idfield string) error {
 		"CREATE TABLE IF NOT EXISTS " +
 			tn +
 			" (" + idfield + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+			"hid TEXT NOT NULL, " +
 			"email TEXT NOT NULL, " +
 			"name TEXT NOT NULL, " +
+			"user_data BLOB, " +
 			"avatar TEXT, " +
 			"password BLOB NOT NULL, " +
 			"role INTEGER DEFAULT 0, " +
@@ -77,29 +80,21 @@ func (s *UserManager) createTable(idfield string) error {
 		return err
 	}
 
-	q = ncdb.NewQuery(
-		"CREATE UNIQUE INDEX IF NOT EXISTS email_idx ON " +
-			tn +
-			"(email);")
-	_, err = q.Execute()
+	err = s.db.CreateUniqueIndex(s.table, "email")
 	if err != nil {
 		return err
 	}
 
-	q = ncdb.NewQuery(
-		"CREATE UNIQUE INDEX IF NOT EXISTS " + idfield + "_idx ON " +
-			tn +
-			"(" + idfield + ");")
-
-	_, err = q.Execute()
+	err = s.db.CreateUniqueIndex(s.table, idfield)
 	if err != nil {
 		return err
 	}
 
-	return nil
+	err = s.db.CreateUniqueIndex(s.table, "hid")
+	return err
 }
 
-func (s *UserManager) Select(id int) (*User, error) {
+func (s *UserManager) Select(id int64) (*User, error) {
 	db := s.db.ConcurrentDB()
 	tn := db.QuoteTableName(s.table)
 
@@ -133,6 +128,23 @@ func (s *UserManager) SelectByEmail(email string) (*User, error) {
 	return &user, nil
 }
 
+func (s *UserManager) SelectByHID(hid string) (*User, error) {
+	db := s.db.ConcurrentDB()
+	tn := db.QuoteTableName(s.table)
+
+	user := User{}
+	err := db.
+		NewQuery("SELECT * FROM " + tn + " WHERE hid = {:hid} LIMIT 1").
+		Bind(dbx.Params{"hid": hid}).
+		One(&user)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
 func (s *UserManager) CheckPassword(user *User, pw string) error {
 	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(pw))
 	return err
@@ -140,17 +152,16 @@ func (s *UserManager) CheckPassword(user *User, pw string) error {
 
 func (s *UserManager) CheckGetUser(email string, pw string) (*User, error) {
 	user, err := s.SelectByEmail(email)
-	if err != nil {
-		return nil, err
-	}
 
-	if user == nil {
-		return nil, nil
+	if user == nil || err == sql.ErrNoRows {
+		return nil, ErrUserNotFound
+	} else if err != nil {
+		return nil, err
 	}
 
 	err = s.CheckPassword(user, pw)
 	if err != nil {
-		return nil, err
+		return nil, ErrWrongPassword
 	}
 
 	return user, nil
@@ -164,6 +175,7 @@ func (s *UserManager) Insert(user *User, pw string) (*User, error) {
 	}
 	user.Password = string(hpw)
 	user.Record = models.NewRecord()
+	user.HID = generateHID()
 
 	pusexp, _ := time.ParseDuration(strconv.Itoa(models.DEFAULT_USER_EXPIRATION) + "s")
 	user.Expires = user.Created.Add(pusexp)
@@ -180,11 +192,14 @@ func (s *UserManager) Insert(user *User, pw string) (*User, error) {
 func (s *UserManager) Update(user *User) error {
 	db := s.db.NonConcurrentDB()
 	user.Modified = types.NowDateTime()
+	if user.HID == "" {
+		return ErrHIDChanged
+	}
 	err := db.Model(user).Update()
 	return err
 }
 
-func (s *UserManager) Delete(id int) error {
+func (s *UserManager) Delete(id int64) error {
 	db := s.db.NonConcurrentDB()
 	q := db.
 		NewQuery("DELETE FROM " + db.QuoteTableName(s.table) + " WHERE id = {:id}").
@@ -210,4 +225,8 @@ func (s *UserManager) HasAdmins() (bool, error) {
 	}
 
 	return user.ID > 0, nil
+}
+
+func generateHID() string {
+	return xid.New().String()
 }

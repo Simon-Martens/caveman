@@ -3,8 +3,8 @@
         {
             "previewLimit": 50,
             "driver": "SQLite",
-            "name": "Cavemand",
-            "database": "${workspaceFolder:caveman}/cm_data/data.db"
+            "name": "Caveman_test",
+            "database": "${workspaceFolder:caveman}/test/test_data/data.db"
         }
     ],
     "sqltools.useNodeRuntime": true

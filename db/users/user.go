@@ -8,8 +8,11 @@ import (
 type User struct {
 	models.Record
 	Name     string         `db:"name"`
+	HID      string         `db:"hid"`
 	Email    string         `db:"email"`
 	Password string         `db:"password"`
+	UserData types.JsonMap  `db:"user_data"`
+	Avatar   string         `db:"avatar"`
 	Expires  types.DateTime `db:"expires"`
 	Role     int            `db:"role"`
 	Active   bool           `db:"active"`

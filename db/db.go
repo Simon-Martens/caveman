@@ -75,6 +75,20 @@ func (db *DB) NonConcurrentDB() *dbx.DB {
 	return db.nonConcurrentDB
 }
 
+func (db *DB) CreateUniqueIndex(table, field string) error {
+	tb := db.nonConcurrentDB.QuoteTableName(table)
+	q := db.nonConcurrentDB.NewQuery("CREATE UNIQUE INDEX IF NOT EXISTS " + table + "_" + field + "_idx ON " + tb + " (" + field + ")")
+	_, err := q.Execute()
+	return err
+}
+
+func (db *DB) CreateIndex(table, field string) error {
+	tb := db.nonConcurrentDB.QuoteTableName(table)
+	q := db.nonConcurrentDB.NewQuery("CREATE INDEX IF NOT EXISTS " + table + "_" + field + "_idx ON " + tb + " (" + field + ")")
+	_, err := q.Execute()
+	return err
+}
+
 func queryLogFunc(ctx context.Context, t time.Duration, sql string, rows *sql.Rows, err error) {
 	color.HiBlue("[%.2fms] %v\n", float64(t.Milliseconds()), sql)
 }
