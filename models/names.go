@@ -25,13 +25,15 @@ const (
 	DEFAULT_DATA_DIR_NAME      string = "cm_data"
 	DEFAULT_DATA_FILE_NAME     string = "data.db"
 
-	DEFAULT_SESSIONS_TABLE_NAME   string = "__sessions"
-	DEFAULT_USERS_TABLE_NAME      string = "__users"
-	DEFAULT_MIGRATIONS_TABLE_NAME string = "__migrations"
-	DEFAULT_ID_FIELD              string = "id"
+	DEFAULT_SESSIONS_TABLE_NAME      string = "__sessions"
+	DEFAULT_ACCESS_TOKENS_TABLE_NAME string = "__access_tokens"
+	DEFAULT_USERS_TABLE_NAME         string = "__users"
+	DEFAULT_MIGRATIONS_TABLE_NAME    string = "__migrations"
+	DEFAULT_ID_FIELD                 string = "id"
 
 	DEFAULT_USER_EXPIRATION          int = 60 * 60 * 24 * (365 * 10) // ~10 years
 	DEFAULT_SHORT_SESSION_EXPIRATION int = 60 * 60 * 2               // 2 hours
+	DEFAULT_CSRF_EXPIRATION          int = 60 * 60 * 24              // 1 day
 	DEFAULT_LONG_SESSION_EXPIRATION  int = 60 * 60 * 24 * 30         // 30 days
 
 	DEFAULT_RESOURCE_SESSION_EXPIRATION int = 60 * 60 * 24 * 7 // 7 days

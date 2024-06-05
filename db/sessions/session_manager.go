@@ -1,9 +1,10 @@
 package sessions
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/sha512"
-	"database/sql"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
@@ -22,9 +23,14 @@ type SessionManager struct {
 	db      *db.DB
 	table   string
 	idfield string
+
+	long_exp  int
+	short_exp int
+
+	HMACKey []byte
 }
 
-func New(db *db.DB, tablename, usertable, idfield string) (*SessionManager, error) {
+func New(db *db.DB, tablename, usertable, idfield string, l_exp, s_exp int) (*SessionManager, error) {
 	if db == nil {
 		return nil, errors.New("db is nil")
 	}
@@ -37,12 +43,21 @@ func New(db *db.DB, tablename, usertable, idfield string) (*SessionManager, erro
 		return nil, errors.New("user table or user id column name is empty")
 	}
 
-	s := &SessionManager{
-		db:    db,
-		table: tablename,
+	// HMAC secret for CSRF token get lost if server is restarted
+	hmacs, err := CreateHMACSecret()
+	if err != nil {
+		return nil, err
 	}
 
-	err := s.createTable(usertable, idfield)
+	s := &SessionManager{
+		db:        db,
+		table:     tablename,
+		long_exp:  l_exp,
+		short_exp: s_exp,
+		HMACKey:   hmacs,
+	}
+
+	err = s.createTable(usertable, idfield)
 	if err != nil {
 		return nil, err
 	}
@@ -62,11 +77,10 @@ func (s *SessionManager) createTable(usertable, idfield string) error {
 			" (" + idfield + " INTEGER PRIMARY KEY NOT NULL, " +
 			"session BLOB NOT NULL, " +
 			"session_data STRING, " +
-			"resource STRING, " +
 			"created INTEGER DEFAULT 0, " +
 			"modified INTEGER DEFAULT 0, " +
 			"expires INTEGER DEFAULT 0, " +
-			"user_id INTEGER, " +
+			"user_id INTEGER NOT NULL, " +
 			"FOREIGN KEY(user_id) REFERENCES " + utn + "(" + idfield + "));",
 	)
 
@@ -85,34 +99,14 @@ func (s *SessionManager) createTable(usertable, idfield string) error {
 		return err
 	}
 
-	err = s.db.CreateIndex(s.table, "resource")
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
-func (s *SessionManager) Insert(user int64, short bool) (*Session, error) {
+func (s *SessionManager) InsertEternal(user int64) (*Session, error) {
 	n := Session{
 		Record: models.NewRecord(),
+		User:   user,
 	}
-
-	u := sql.NullInt64{}
-	err := u.Scan(user)
-	if err != nil {
-		return nil, err
-	}
-	n.User = u
-
-	var dexp time.Duration
-	if short {
-		dexp, _ = time.ParseDuration(strconv.Itoa(models.DEFAULT_SHORT_SESSION_EXPIRATION) + "s")
-	} else {
-		dexp, _ = time.ParseDuration(strconv.Itoa(models.DEFAULT_LONG_SESSION_EXPIRATION) + "s")
-	}
-
-	n.Expires = n.Created.Add(dexp)
 
 	tok, err := CreateRandomToken()
 	if err != nil {
@@ -130,12 +124,19 @@ func (s *SessionManager) Insert(user int64, short bool) (*Session, error) {
 	return &n, nil
 }
 
-func (s *SessionManager) InsertResource(res string) (*Session, error) {
+func (s *SessionManager) Insert(user int64, short bool) (*Session, error) {
 	n := Session{
 		Record: models.NewRecord(),
+		User:   user,
 	}
 
-	dexp, _ := time.ParseDuration(strconv.Itoa(models.DEFAULT_RESOURCE_SESSION_EXPIRATION) + "s")
+	var dexp time.Duration
+	if short {
+		dexp, _ = time.ParseDuration(strconv.Itoa(s.short_exp) + "s")
+	} else {
+		dexp, _ = time.ParseDuration(strconv.Itoa(s.long_exp) + "s")
+	}
+
 	n.Expires = n.Created.Add(dexp)
 
 	tok, err := CreateRandomToken()
@@ -144,12 +145,6 @@ func (s *SessionManager) InsertResource(res string) (*Session, error) {
 	}
 
 	n.Session = tok
-	r := sql.NullString{}
-	err = r.Scan(res)
-	if err != nil {
-		return nil, err
-	}
-	n.Resource = r
 
 	db := s.db.NonConcurrentDB()
 	err = db.Model(&n).Insert()
@@ -187,7 +182,7 @@ func (s *SessionManager) SelectBySession(session string) (*Session, error) {
 		return nil, ErrSessionNotFound
 	}
 
-	if se.Expires.Time().Before(time.Now()) {
+	if !se.Expires.IsZero() && se.Expires.Time().Before(time.Now()) {
 		s.DeleteBySession(se.Session)
 		return nil, ErrSessionExpired
 	}
@@ -216,4 +211,30 @@ func CreateRandomToken() (string, error) {
 	// Sadly, 64 bits dont align to 6 bits, so there will be some padding
 	bas := base64.URLEncoding.EncodeToString(hash[:])
 	return bas, nil
+}
+
+func CreateHMACSecret() ([]byte, error) {
+	b := make([]byte, 2048)
+	_, err := rand.Read(b)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+func (s *SessionManager) CreateCSRFToken(session *Session) string {
+	t := session.Session + ":" + session.Created.String() + ":" + strconv.FormatInt(session.User, 10)
+	mac := hmac.New(sha256.New, s.HMACKey)
+	mac.Write([]byte(t))
+	return base64.URLEncoding.EncodeToString(mac.Sum(nil))
+}
+
+func (s *SessionManager) ValidateCSRFToken(session *Session, token string) bool {
+	t := session.Session + ":" + session.Created.String() + ":" + strconv.FormatInt(session.User, 10)
+	mac := hmac.New(sha256.New, s.HMACKey)
+	mac.Write([]byte(t))
+	expected := mac.Sum(nil)
+	actual, _ := base64.URLEncoding.DecodeString(token)
+	return hmac.Equal(expected, actual)
 }

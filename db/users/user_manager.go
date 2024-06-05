@@ -10,7 +10,6 @@ import (
 	"github.com/Simon-Martens/caveman/models"
 	"github.com/Simon-Martens/caveman/tools/types"
 	"github.com/pocketbase/dbx"
-	"github.com/rs/xid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -61,16 +60,16 @@ func (s *UserManager) createTable(idfield string) error {
 		"CREATE TABLE IF NOT EXISTS " +
 			tn +
 			" (" + idfield + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
-			"hid TEXT NOT NULL, " +
-			"email TEXT NOT NULL, " +
-			"name TEXT NOT NULL, " +
+			"email TEXT, " +
+			"name TEXT, " +
 			"user_data BLOB, " +
 			"avatar TEXT, " +
-			"password BLOB NOT NULL, " +
+			"password BLOB, " +
 			"role INTEGER DEFAULT 0, " +
 			"created INTEGER DEFAULT 0, " +
 			"modified INTEGER DEFAULT 0, " +
 			"expires INTEGER DEFAULT 0, " +
+			"last_seen INTEGER DEFAULT 0, " +
 			"active BOOLEAN DEFAULT TRUE, " +
 			"verified BOOLEAN DEFAULT FALSE);",
 	)
@@ -90,7 +89,6 @@ func (s *UserManager) createTable(idfield string) error {
 		return err
 	}
 
-	err = s.db.CreateUniqueIndex(s.table, "hid")
 	return err
 }
 
@@ -128,23 +126,8 @@ func (s *UserManager) SelectByEmail(email string) (*User, error) {
 	return &user, nil
 }
 
-func (s *UserManager) SelectByHID(hid string) (*User, error) {
-	db := s.db.ConcurrentDB()
-	tn := db.QuoteTableName(s.table)
-
-	user := User{}
-	err := db.
-		NewQuery("SELECT * FROM " + tn + " WHERE hid = {:hid} LIMIT 1").
-		Bind(dbx.Params{"hid": hid}).
-		One(&user)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &user, nil
-}
-
+// TODO: Implement peppering of passwords
+// So hackers cant't do anything if the table is stolen but the process space is intact
 func (s *UserManager) CheckPassword(user *User, pw string) error {
 	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(pw))
 	return err
@@ -175,7 +158,6 @@ func (s *UserManager) Insert(user *User, pw string) (*User, error) {
 	}
 	user.Password = string(hpw)
 	user.Record = models.NewRecord()
-	user.HID = generateHID()
 
 	pusexp, _ := time.ParseDuration(strconv.Itoa(models.DEFAULT_USER_EXPIRATION) + "s")
 	user.Expires = user.Created.Add(pusexp)
@@ -192,9 +174,6 @@ func (s *UserManager) Insert(user *User, pw string) (*User, error) {
 func (s *UserManager) Update(user *User) error {
 	db := s.db.NonConcurrentDB()
 	user.Modified = types.NowDateTime()
-	if user.HID == "" {
-		return ErrHIDChanged
-	}
 	err := db.Model(user).Update()
 	return err
 }
@@ -224,9 +203,5 @@ func (s *UserManager) HasAdmins() (bool, error) {
 		return false, err
 	}
 
-	return user.ID > 0, nil
-}
-
-func generateHID() string {
-	return xid.New().String()
+	return true, nil
 }

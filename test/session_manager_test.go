@@ -33,8 +33,42 @@ func TestSessionManager(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !sess.User.Valid || sess.User.Int64 != user.ID {
+	if sess.User != user.ID {
 		t.Fatal("User ID is not correct")
+	}
+
+	// Test CSRF Tokens
+	csrf := dbenv.SM.CreateCSRFToken(sess)
+	if csrf == "" {
+		t.Fatal("CSRF Token is empty")
+	}
+
+	if !dbenv.SM.ValidateCSRFToken(sess, csrf) {
+		t.Fatal("CSRF Token is invalid")
+	}
+
+	sess2, err := dbenv.SM.Insert(sess.User, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if dbenv.SM.ValidateCSRFToken(sess2, csrf) {
+		t.Fatal("CSRF Token is valid for another session")
+	}
+
+	// TODO: session expiration test
+	sess3, err := dbenv.SM.InsertEternal(sess.User)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sess3_select, err := dbenv.SM.SelectBySession(sess3.Session)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !sess3_select.Expires.IsZero() {
+		t.Fatal("Session should be eternal")
 	}
 
 	err = dbenv.SM.DeleteBySession(sess.Session)
@@ -46,8 +80,6 @@ func TestSessionManager(t *testing.T) {
 	if err == nil || sessions.ErrSessionNotFound != err {
 		t.Fatal("Session should not exist")
 	}
-
-	sess, err = dbenv.SM.InsertResource("/hello")
 
 	dbenv.Close()
 }

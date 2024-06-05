@@ -1,19 +1,17 @@
 package sessions
 
 import (
-	"database/sql"
-
 	"github.com/Simon-Martens/caveman/models"
 	"github.com/Simon-Martens/caveman/tools/types"
 )
 
 type Session struct {
 	models.Record
+	ID          int64          `db:"pk,id"`
 	Session     string         `db:"session"`
 	SessionData types.JsonMap  `db:"session_data"`
-	Resource    sql.NullString `db:"resource"`
 	Expires     types.DateTime `db:"expires"`
-	User        sql.NullInt64  `db:"user_id"`
+	User        int64          `db:"user_id"`
 }
 
 func (s Session) TableName() string {

@@ -47,21 +47,8 @@ func TestUserManager(t *testing.T) {
 		t.Fatal("User data is not correct")
 	}
 
-	if us.HID == "" || len(us.HID) != 20 {
-		t.Fatal("HID is empty")
-	}
-
 	us, err = dbenv.UM.Select(TestSuperAdmin.ID)
 
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if us.Name != TestSuperAdmin.Name || us.Email != TestSuperAdmin.Email || us.Role != 3 || us.Active != true || us.Verified != true {
-		t.Fatal("User data is not correct")
-	}
-
-	us, err = dbenv.UM.SelectByHID(us.HID)
 	if err != nil {
 		t.Fatal(err)
 	}

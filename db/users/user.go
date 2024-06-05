@@ -7,13 +7,14 @@ import (
 
 type User struct {
 	models.Record
+	ID       int64          `db:"pk,id"`
 	Name     string         `db:"name"`
-	HID      string         `db:"hid"`
 	Email    string         `db:"email"`
 	Password string         `db:"password"`
 	UserData types.JsonMap  `db:"user_data"`
 	Avatar   string         `db:"avatar"`
 	Expires  types.DateTime `db:"expires"`
+	LastSeen types.DateTime `db:"last_seen"`
 	Role     int            `db:"role"`
 	Active   bool           `db:"active"`
 	Verified bool           `db:"verified"`
