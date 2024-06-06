@@ -36,5 +36,6 @@ const (
 	DEFAULT_CSRF_EXPIRATION          int = 60 * 60 * 24              // 1 day
 	DEFAULT_LONG_SESSION_EXPIRATION  int = 60 * 60 * 24 * 30         // 30 days
 
-	DEFAULT_RESOURCE_SESSION_EXPIRATION int = 60 * 60 * 24 * 7 // 7 days
+	DEFAULT_LONG_RESOURCE_SESSION_EXPIRATION  int = 60 * 60 * 24 * 7 // 7 days
+	DEFAULT_SHORT_RESOURCE_SESSION_EXPIRATION int = 60 * 60 * 6      // 6 hours
 )

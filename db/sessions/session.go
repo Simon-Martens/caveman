@@ -11,6 +11,8 @@ type Session struct {
 	Session     string         `db:"session"`
 	SessionData types.JsonMap  `db:"session_data"`
 	Expires     types.DateTime `db:"expires"`
+	IP          string         `db:"ip"`
+	Agent       string         `db:"agent"`
 	User        int64          `db:"user_id"`
 }
 

@@ -77,6 +77,8 @@ func (s *SessionManager) createTable(usertable, idfield string) error {
 			" (" + idfield + " INTEGER PRIMARY KEY NOT NULL, " +
 			"session STRING NOT NULL, " +
 			"session_data STRING, " +
+			"ip STRING, " +
+			"agent STRING, " +
 			"created INTEGER DEFAULT 0, " +
 			"modified INTEGER DEFAULT 0, " +
 			"expires INTEGER DEFAULT 0, " +
@@ -102,10 +104,12 @@ func (s *SessionManager) createTable(usertable, idfield string) error {
 	return nil
 }
 
-func (s *SessionManager) InsertEternal(user int64) (*Session, error) {
+func (s *SessionManager) InsertEternal(user int64, agent string, ip string) (*Session, error) {
 	n := Session{
 		Record: models.NewRecord(),
 		User:   user,
+		Agent:  agent,
+		IP:     ip,
 	}
 
 	tok, err := CreateRandomToken()
@@ -124,10 +128,12 @@ func (s *SessionManager) InsertEternal(user int64) (*Session, error) {
 	return &n, nil
 }
 
-func (s *SessionManager) Insert(user int64, short bool) (*Session, error) {
+func (s *SessionManager) Insert(user int64, short bool, agent string, ip string) (*Session, error) {
 	n := Session{
 		Record: models.NewRecord(),
 		User:   user,
+		Agent:  agent,
+		IP:     ip,
 	}
 
 	var dexp time.Duration

@@ -6,20 +6,23 @@ import (
 	"testing"
 
 	"github.com/Simon-Martens/caveman/db"
+	"github.com/Simon-Martens/caveman/db/accesstokens"
 	"github.com/Simon-Martens/caveman/db/sessions"
 	"github.com/Simon-Martens/caveman/db/users"
 	"github.com/Simon-Martens/caveman/models"
 )
 
 type DatabaseEnv struct {
-	DB *db.DB
-	UM *users.UserManager
-	SM *sessions.SessionManager
+	DB  *db.DB
+	UM  *users.UserManager
+	SM  *sessions.SessionManager
+	ATM *accesstokens.AccessTokenManager
 }
 
 func TestNewDatabaseEnv(T *testing.T) *DatabaseEnv {
 
 	db, err := db.New(Path(), 120, 12)
+	db.ConnectLogger()
 	if err != nil {
 		T.Fatal(err)
 	}
@@ -39,7 +42,17 @@ func TestNewDatabaseEnv(T *testing.T) *DatabaseEnv {
 		T.Fatal(err)
 	}
 
-	return &DatabaseEnv{db, um, sm}
+	atm, err := accesstokens.New(db,
+		models.DEFAULT_ACCESS_TOKENS_TABLE_NAME,
+		models.DEFAULT_USERS_TABLE_NAME,
+		models.DEFAULT_ID_FIELD,
+		models.DEFAULT_LONG_RESOURCE_SESSION_EXPIRATION,
+		models.DEFAULT_SHORT_RESOURCE_SESSION_EXPIRATION)
+	if err != nil {
+		T.Fatal(err)
+	}
+
+	return &DatabaseEnv{db, um, sm, atm}
 }
 
 func Path() string {

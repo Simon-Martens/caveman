@@ -23,7 +23,7 @@ func TestSessionManager(t *testing.T) {
 	}
 
 	// Test session manager here
-	sess, err := dbenv.SM.Insert(user.ID, true)
+	sess, err := dbenv.SM.Insert(user.ID, true, "User-Agent", "127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestSessionManager(t *testing.T) {
 		t.Fatal("CSRF Token is invalid")
 	}
 
-	sess2, err := dbenv.SM.Insert(sess.User, false)
+	sess2, err := dbenv.SM.Insert(sess.User, false, "User-Agent", "127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestSessionManager(t *testing.T) {
 	}
 
 	// TODO: session expiration test
-	sess3, err := dbenv.SM.InsertEternal(sess.User)
+	sess3, err := dbenv.SM.InsertEternal(sess.User, "User-Agent", "127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}
