@@ -6,17 +6,15 @@ import (
 	"testing"
 
 	"github.com/Simon-Martens/caveman/db"
-	"github.com/Simon-Martens/caveman/db/accesstokens"
 	"github.com/Simon-Martens/caveman/db/sessions"
 	"github.com/Simon-Martens/caveman/db/users"
 	"github.com/Simon-Martens/caveman/models"
 )
 
 type DatabaseEnv struct {
-	DB  *db.DB
-	UM  *users.UserManager
-	SM  *sessions.SessionManager
-	ATM *accesstokens.AccessTokenManager
+	DB *db.DB
+	UM *users.UserManager
+	SM *sessions.SessionManager
 }
 
 func TestNewDatabaseEnv(T *testing.T) *DatabaseEnv {
@@ -41,13 +39,7 @@ func TestNewDatabaseEnv(T *testing.T) *DatabaseEnv {
 		T.Fatal(err)
 	}
 
-	atm, err := accesstokens.New(db,
-		models.DEFAULT_ACCESS_TOKENS_TABLE_NAME,
-		models.DEFAULT_USERS_TABLE_NAME,
-		models.DEFAULT_ID_FIELD,
-		models.DEFAULT_RESOURCE_SESSION_EXPIRATION)
-
-	return &DatabaseEnv{db, um, sm, atm}
+	return &DatabaseEnv{db, um, sm}
 }
 
 func Path() string {
