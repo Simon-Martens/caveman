@@ -26,5 +26,5 @@ func (s Session) TableName() string {
 func (s Session) PrimaryKey() string {
 	b := make([]byte, binary.MaxVarintLen64)
 	_ = binary.PutVarint(b, s.ID)
-	return base64.URLEncoding.EncodeToString(b)
+	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(b)
 }

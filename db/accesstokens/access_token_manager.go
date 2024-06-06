@@ -239,6 +239,6 @@ func CreateRandomToken() (string, error) {
 	hash := sha256.Sum256(all)
 
 	// Sadly, 32 bits dont align to 6 bits, so there will be some padding
-	bas := base64.URLEncoding.EncodeToString(hash[:])
+	bas := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(hash[:])
 	return bas, nil
 }

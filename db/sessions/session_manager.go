@@ -251,7 +251,7 @@ func CreateRandomToken() (string, error) {
 	hash := sha512.Sum512(all)
 
 	// Sadly, 64 bits dont align to 6 bits, so there will be some padding
-	bas := base64.URLEncoding.EncodeToString(hash[:])
+	bas := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(hash[:])
 	return bas, nil
 }
 
@@ -269,7 +269,7 @@ func (s *SessionManager) CreateCSRFToken(session *Session) string {
 	t := session.Session + ":" + session.Created.String() + ":" + strconv.FormatInt(session.User, 10)
 	mac := hmac.New(sha256.New, s.HMACKey)
 	mac.Write([]byte(t))
-	return base64.URLEncoding.EncodeToString(mac.Sum(nil))
+	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(mac.Sum(nil))
 }
 
 func (s *SessionManager) ValidateCSRFToken(session *Session, token string) bool {
@@ -277,6 +277,6 @@ func (s *SessionManager) ValidateCSRFToken(session *Session, token string) bool 
 	mac := hmac.New(sha256.New, s.HMACKey)
 	mac.Write([]byte(t))
 	expected := mac.Sum(nil)
-	actual, _ := base64.URLEncoding.DecodeString(token)
+	actual, _ := base64.URLEncoding.WithPadding(base64.NoPadding).DecodeString(token)
 	return hmac.Equal(expected, actual)
 }

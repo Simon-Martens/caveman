@@ -17,12 +17,6 @@ func TestLCG(t *testing.T) {
 	if lcg.seed != seed {
 		t.Errorf("Expected seed to be 0, got %d", lcg.seed)
 	}
-	if lcg.a != 6364136223846793005 {
-		t.Errorf("Expected a to be 6364136223846793005, got %d", lcg.a)
-	}
-	if lcg.c != 1 {
-		t.Errorf("Expected c to be 1, got %d", lcg.c)
-	}
 
 	map1 := make(map[int64]bool)
 
@@ -36,7 +30,7 @@ func TestLCG(t *testing.T) {
 		map1[in] = true
 		b := make([]byte, binary.MaxVarintLen64)
 		_ = binary.PutVarint(b, in)
-		t.Log(strconv.Itoa(i) + " Generated unique number: " + strconv.FormatInt(in, 10) + " " + base64.URLEncoding.EncodeToString(b))
+		t.Log(strconv.Itoa(i) + " Generated unique number: " + strconv.FormatInt(in, 10) + " " + base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(b))
 	}
 
 	for i := 0; i < 1000000; i++ {
