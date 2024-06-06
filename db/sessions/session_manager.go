@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/sha512"
+	"database/sql"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/Simon-Martens/caveman/db"
 	"github.com/Simon-Martens/caveman/models"
+	"github.com/Simon-Martens/caveman/tools/lcg"
 	"github.com/pocketbase/dbx"
 )
 
@@ -28,9 +30,11 @@ type SessionManager struct {
 	short_exp int
 
 	HMACKey []byte
+	lcg     *lcg.LCG
+	seed    uint64
 }
 
-func New(db *db.DB, tablename, usertable, idfield string, l_exp, s_exp int) (*SessionManager, error) {
+func New(db *db.DB, tablename, usertable, idfield string, l_exp, s_exp int, lcg_seed uint64) (*SessionManager, error) {
 	if db == nil {
 		return nil, errors.New("db is nil")
 	}
@@ -49,15 +53,28 @@ func New(db *db.DB, tablename, usertable, idfield string, l_exp, s_exp int) (*Se
 		return nil, err
 	}
 
+	if lcg_seed == 0 {
+		lcg_seed = lcg.GenRandomUIntNotPrime()
+	}
+
+	lcg := lcg.New(lcg_seed)
+
 	s := &SessionManager{
 		db:        db,
 		table:     tablename,
 		long_exp:  l_exp,
 		short_exp: s_exp,
 		HMACKey:   hmacs,
+		lcg:       lcg,
 	}
 
 	err = s.createTable(usertable, idfield)
+
+	c, _ := s.Count()
+	if c > 0 {
+		s.lcg.Skip(int64(c))
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -110,6 +127,7 @@ func (s *SessionManager) InsertEternal(user int64, agent string, ip string) (*Se
 		User:   user,
 		Agent:  agent,
 		IP:     ip,
+		ID:     int64(s.lcg.Next()),
 	}
 
 	tok, err := CreateRandomToken()
@@ -134,6 +152,7 @@ func (s *SessionManager) Insert(user int64, short bool, agent string, ip string)
 		User:   user,
 		Agent:  agent,
 		IP:     ip,
+		ID:     int64(s.lcg.Next()),
 	}
 
 	var dexp time.Duration
@@ -194,6 +213,23 @@ func (s *SessionManager) SelectBySession(session string) (*Session, error) {
 	}
 
 	return &se, nil
+}
+
+func (s *SessionManager) Count() (int, error) {
+	db := s.db.ConcurrentDB()
+	tn := db.QuoteTableName(s.table)
+
+	c := models.Count{}
+
+	err := db.NewQuery(
+		"SELECT COUNT(*) AS count FROM " + tn).One(&c)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	} else if err != nil {
+		return 0, err
+	}
+
+	return c.Count, nil
 }
 
 func CreateRandomToken() (string, error) {

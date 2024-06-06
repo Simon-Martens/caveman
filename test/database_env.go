@@ -10,6 +10,7 @@ import (
 	"github.com/Simon-Martens/caveman/db/sessions"
 	"github.com/Simon-Martens/caveman/db/users"
 	"github.com/Simon-Martens/caveman/models"
+	"github.com/Simon-Martens/caveman/tools/lcg"
 )
 
 type DatabaseEnv struct {
@@ -27,7 +28,7 @@ func TestNewDatabaseEnv(T *testing.T) *DatabaseEnv {
 		T.Fatal(err)
 	}
 
-	um, err := users.New(db, models.DEFAULT_USERS_TABLE_NAME, models.DEFAULT_ID_FIELD)
+	um, err := users.New(db, models.DEFAULT_USERS_TABLE_NAME, models.DEFAULT_ID_FIELD, lcg.GenRandomUIntNotPrime())
 	if err != nil {
 		T.Fatal(err)
 	}
@@ -37,7 +38,9 @@ func TestNewDatabaseEnv(T *testing.T) *DatabaseEnv {
 		models.DEFAULT_USERS_TABLE_NAME,
 		models.DEFAULT_ID_FIELD,
 		models.DEFAULT_LONG_SESSION_EXPIRATION,
-		models.DEFAULT_SHORT_SESSION_EXPIRATION)
+		models.DEFAULT_SHORT_SESSION_EXPIRATION,
+		lcg.GenRandomUIntNotPrime(),
+	)
 	if err != nil {
 		T.Fatal(err)
 	}

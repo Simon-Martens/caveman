@@ -8,6 +8,7 @@ import (
 
 	"github.com/Simon-Martens/caveman/db"
 	"github.com/Simon-Martens/caveman/models"
+	"github.com/Simon-Martens/caveman/tools/lcg"
 	"github.com/Simon-Martens/caveman/tools/types"
 	"github.com/pocketbase/dbx"
 	"golang.org/x/crypto/bcrypt"
@@ -23,9 +24,11 @@ type UserManager struct {
 	db      *db.DB
 	table   string
 	idfield string
+
+	lcg *lcg.LCG
 }
 
-func New(db *db.DB, tablename, idfield string) (*UserManager, error) {
+func New(db *db.DB, tablename, idfield string, lcg_seed uint64) (*UserManager, error) {
 	if db == nil {
 		return nil, errors.New("db is nil")
 	}
@@ -38,12 +41,25 @@ func New(db *db.DB, tablename, idfield string) (*UserManager, error) {
 		return nil, errors.New("user table or user id column name is empty")
 	}
 
+	if lcg_seed == 0 {
+		lcg_seed = lcg.GenRandomUIntNotPrime()
+	}
+
+	lcg := lcg.New(lcg_seed)
+
 	s := &UserManager{
 		db:    db,
 		table: tablename,
+		lcg:   lcg,
 	}
 
 	err := s.createTable(idfield)
+
+	c, _ := s.Count()
+	if c > 0 {
+		s.lcg.Skip(int64(c))
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -158,6 +174,7 @@ func (s *UserManager) Insert(user *User, pw string) (*User, error) {
 	}
 	user.Password = string(hpw)
 	user.Record = models.NewRecord()
+	user.ID = int64(s.lcg.Next())
 
 	pusexp, _ := time.ParseDuration(strconv.Itoa(models.DEFAULT_USER_EXPIRATION) + "s")
 	user.Expires = user.Created.Add(pusexp)
@@ -186,6 +203,23 @@ func (s *UserManager) Delete(id int64) error {
 
 	_, err := q.Execute()
 	return err
+}
+
+func (s *UserManager) Count() (int, error) {
+	db := s.db.ConcurrentDB()
+	tn := db.QuoteTableName(s.table)
+
+	c := models.Count{}
+
+	err := db.NewQuery(
+		"SELECT COUNT(*) AS count FROM " + tn).One(&c)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	} else if err != nil {
+		return 0, err
+	}
+
+	return c.Count, nil
 }
 
 func (s *UserManager) HasAdmins() (bool, error) {

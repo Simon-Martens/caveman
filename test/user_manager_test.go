@@ -33,6 +33,13 @@ func TestUserManager(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	i, err := dbenv.UM.Count()
+	if i != 1 {
+		t.Fatal("Count() should return 1")
+	}
+
+	t.Log("SuperAdmin ID:", TestSuperAdmin.PrimaryKey())
+
 	hasa, err = dbenv.UM.HasAdmins()
 	if hasa == false {
 		t.Fatal("HasAdmins() should return true")

@@ -1,6 +1,9 @@
 package sessions
 
 import (
+	"encoding/base64"
+	"encoding/binary"
+
 	"github.com/Simon-Martens/caveman/models"
 	"github.com/Simon-Martens/caveman/tools/types"
 )
@@ -18,4 +21,10 @@ type Session struct {
 
 func (s Session) TableName() string {
 	return models.DEFAULT_SESSIONS_TABLE_NAME
+}
+
+func (s Session) PrimaryKey() string {
+	b := make([]byte, binary.MaxVarintLen64)
+	_ = binary.PutVarint(b, s.ID)
+	return base64.URLEncoding.EncodeToString(b)
 }

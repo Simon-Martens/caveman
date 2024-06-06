@@ -1,6 +1,8 @@
 package lcg
 
 import (
+	"encoding/base64"
+	"encoding/binary"
 	"strconv"
 	"testing"
 )
@@ -32,7 +34,9 @@ func TestLCG(t *testing.T) {
 			t.Fail()
 		}
 		map1[in] = true
-		t.Log(strconv.Itoa(i) + " Generated unique number: " + strconv.FormatInt(in, 10))
+		b := make([]byte, binary.MaxVarintLen64)
+		_ = binary.PutVarint(b, in)
+		t.Log(strconv.Itoa(i) + " Generated unique number: " + strconv.FormatInt(in, 10) + " " + base64.URLEncoding.EncodeToString(b))
 	}
 
 	for i := 0; i < 1000000; i++ {
