@@ -75,7 +75,7 @@ func (s *SessionManager) createTable(usertable, idfield string) error {
 		"CREATE TABLE IF NOT EXISTS " +
 			tn +
 			" (" + idfield + " INTEGER PRIMARY KEY NOT NULL, " +
-			"session BLOB NOT NULL, " +
+			"session STRING NOT NULL, " +
 			"session_data STRING, " +
 			"created INTEGER DEFAULT 0, " +
 			"modified INTEGER DEFAULT 0, " +

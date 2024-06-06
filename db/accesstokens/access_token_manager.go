@@ -1,10 +1,8 @@
 package accesstokens
 
 import (
-	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/sha512"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
@@ -26,8 +24,6 @@ type AccessTokenManager struct {
 
 	long_exp  int
 	short_exp int
-
-	HMACKey []byte
 }
 
 func New(db *db.DB, tablename, usertable, idfield string, l_exp, s_exp int) (*AccessTokenManager, error) {
@@ -43,21 +39,14 @@ func New(db *db.DB, tablename, usertable, idfield string, l_exp, s_exp int) (*Ac
 		return nil, errors.New("user table or user id column name is empty")
 	}
 
-	// HMAC secret for CSRF token get lost if server is restarted
-	hmacs, err := CreateHMACSecret()
-	if err != nil {
-		return nil, err
-	}
-
 	s := &AccessTokenManager{
 		db:        db,
 		table:     tablename,
 		long_exp:  l_exp,
 		short_exp: s_exp,
-		HMACKey:   hmacs,
 	}
 
-	err = s.createTable(usertable, idfield)
+	err := s.createTable(usertable, idfield)
 	if err != nil {
 		return nil, err
 	}
@@ -75,13 +64,14 @@ func (s *AccessTokenManager) createTable(usertable, idfield string) error {
 		"CREATE TABLE IF NOT EXISTS " +
 			tn +
 			" (" + idfield + " INTEGER PRIMARY KEY NOT NULL, " +
-			"session BLOB NOT NULL, " +
-			"session_data STRING, " +
+			"token BLOB NOT NULL, " +
+			"token_data STRING, " +
+			"path STRING NOT NULL, " +
 			"created INTEGER DEFAULT 0, " +
 			"modified INTEGER DEFAULT 0, " +
 			"expires INTEGER DEFAULT 0, " +
-			"user_id INTEGER NOT NULL, " +
-			"FOREIGN KEY(user_id) REFERENCES " + utn + "(" + idfield + "));",
+			"creator_id INTEGER NOT NULL, " +
+			"FOREIGN KEY(creator_id) REFERENCES " + utn + "(" + idfield + "));",
 	)
 
 	_, err := q.Execute()
@@ -89,12 +79,17 @@ func (s *AccessTokenManager) createTable(usertable, idfield string) error {
 		return err
 	}
 
-	err = s.db.CreateUniqueIndex(s.table, "session")
+	err = s.db.CreateUniqueIndex(s.table, "token")
 	if err != nil {
 		return err
 	}
 
-	err = s.db.CreateIndex(s.table, "user_id")
+	err = s.db.CreateIndex(s.table, "creator_id")
+	if err != nil {
+		return err
+	}
+
+	err = s.db.CreateIndex(s.table, "path")
 	if err != nil {
 		return err
 	}
@@ -104,8 +99,8 @@ func (s *AccessTokenManager) createTable(usertable, idfield string) error {
 
 func (s *AccessTokenManager) InsertEternal(user int64) (*AccessToken, error) {
 	n := AccessToken{
-		Record: models.NewRecord(),
-		User:   user,
+		Record:  models.NewRecord(),
+		Creator: user,
 	}
 
 	tok, err := CreateRandomToken()
@@ -113,7 +108,7 @@ func (s *AccessTokenManager) InsertEternal(user int64) (*AccessToken, error) {
 		return nil, err
 	}
 
-	n.AccessToken = tok
+	n.Token = tok
 
 	db := s.db.NonConcurrentDB()
 	err = db.Model(&n).Insert()
@@ -126,8 +121,8 @@ func (s *AccessTokenManager) InsertEternal(user int64) (*AccessToken, error) {
 
 func (s *AccessTokenManager) Insert(user int64, short bool) (*AccessToken, error) {
 	n := AccessToken{
-		Record: models.NewRecord(),
-		User:   user,
+		Record:  models.NewRecord(),
+		Creator: user,
 	}
 
 	var dexp time.Duration
@@ -144,7 +139,7 @@ func (s *AccessTokenManager) Insert(user int64, short bool) (*AccessToken, error
 		return nil, err
 	}
 
-	n.AccessToken = tok
+	n.Token = tok
 
 	db := s.db.NonConcurrentDB()
 	err = db.Model(&n).Insert()
@@ -155,27 +150,27 @@ func (s *AccessTokenManager) Insert(user int64, short bool) (*AccessToken, error
 	return &n, nil
 }
 
-func (s *AccessTokenManager) DeleteByAccessToken(session string) error {
+func (s *AccessTokenManager) DeleteByAccessToken(token string) error {
 	db := s.db.NonConcurrentDB()
 	tn := db.QuoteTableName(s.table)
 
 	q := db.NewQuery(
-		"DELETE FROM " + tn + " WHERE session = {:id}").
-		Bind(dbx.Params{"id": session})
+		"DELETE FROM " + tn + " WHERE token = {:id}").
+		Bind(dbx.Params{"id": token})
 
 	_, err := q.Execute()
 	return err
 }
 
-func (s *AccessTokenManager) SelectByAccessToken(session string) (*AccessToken, error) {
+func (s *AccessTokenManager) SelectByAccessToken(token string) (*AccessToken, error) {
 	db := s.db.ConcurrentDB()
 	tn := db.QuoteTableName(s.table)
 
 	se := AccessToken{}
 
 	err := db.NewQuery(
-		"SELECT * FROM " + tn + " WHERE session = {:id} LIMIT 1").
-		Bind(dbx.Params{"id": session}).
+		"SELECT * FROM " + tn + " WHERE token = {:id} LIMIT 1").
+		Bind(dbx.Params{"id": token}).
 		One(&se)
 
 	if err != nil {
@@ -183,7 +178,7 @@ func (s *AccessTokenManager) SelectByAccessToken(session string) (*AccessToken, 
 	}
 
 	if !se.Expires.IsZero() && se.Expires.Time().Before(time.Now()) {
-		s.DeleteByAccessToken(se.AccessToken)
+		s.DeleteByAccessToken(se.Token)
 		return nil, ErrAccessTokenExpired
 	}
 
@@ -206,35 +201,9 @@ func CreateRandomToken() (string, error) {
 	}
 
 	all := append(b, t...)
-	hash := sha512.Sum512(all)
+	hash := sha256.Sum256(all)
 
 	// Sadly, 64 bits dont align to 6 bits, so there will be some padding
 	bas := base64.URLEncoding.EncodeToString(hash[:])
 	return bas, nil
-}
-
-func CreateHMACSecret() ([]byte, error) {
-	b := make([]byte, 2048)
-	_, err := rand.Read(b)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-func (s *AccessTokenManager) CreateCSRFToken(session *AccessToken) string {
-	t := session.AccessToken + ":" + session.Created.String() + ":" + strconv.FormatInt(session.User, 10)
-	mac := hmac.New(sha256.New, s.HMACKey)
-	mac.Write([]byte(t))
-	return base64.URLEncoding.EncodeToString(mac.Sum(nil))
-}
-
-func (s *AccessTokenManager) ValidateCSRFToken(session *AccessToken, token string) bool {
-	t := session.AccessToken + ":" + session.Created.String() + ":" + strconv.FormatInt(session.User, 10)
-	mac := hmac.New(sha256.New, s.HMACKey)
-	mac.Write([]byte(t))
-	expected := mac.Sum(nil)
-	actual, _ := base64.URLEncoding.DecodeString(token)
-	return hmac.Equal(expected, actual)
 }

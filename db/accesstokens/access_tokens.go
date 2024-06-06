@@ -11,7 +11,7 @@ type AccessToken struct {
 	Token     string         `db:"token"`
 	TokenData types.JsonMap  `db:"token_data"`
 	Path      string         `db:"path"`
-	Creator   int64          `db:"creator"`
+	Creator   int64          `db:"creator.Sum`
 	Expires   types.DateTime `db:"expires"`
 }
 
