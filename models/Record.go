@@ -11,7 +11,7 @@ func NewRecord() Record {
 	r := Record{}
 
 	r.Created = types.NowDateTime()
-	r.Modified = types.NowDateTime()
+	r.Modified = r.Created
 
 	return r
 }

@@ -1,16 +1,13 @@
 package accesstokens
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/binary"
+	"database/sql"
 	"errors"
-	"strconv"
 	"time"
 
 	"github.com/Simon-Martens/caveman/db"
 	"github.com/Simon-Martens/caveman/models"
+	"github.com/Simon-Martens/caveman/tools/security"
 	"github.com/Simon-Martens/caveman/tools/types"
 	"github.com/pocketbase/dbx"
 )
@@ -19,6 +16,8 @@ var ErrAccessTokenExpired = errors.New("access token expired")
 var ErrAccessTokenNotFound = errors.New("access token not found")
 var ErrAccessTokenReused = errors.New("access token reuse")
 var ErrAccessTokenInvalidPath = errors.New("wrong path for access token")
+var ErrUserInvalid = errors.New("user invalid")
+var PathInvalid = errors.New("path invalid")
 
 type AccessTokenManager struct {
 	db      *db.DB
@@ -67,8 +66,8 @@ func (s *AccessTokenManager) createTable(usertable, idfield string) error {
 		"CREATE TABLE IF NOT EXISTS " +
 			tn +
 			" (" + idfield + " INTEGER PRIMARY KEY NOT NULL, " +
-			"token BLOB NOT NULL, " +
-			"token_data STRING, " +
+			"token TOKEN NOT NULL COLLATE BINARY, " +
+			"token_data TEXT, " +
 			"path STRING NOT NULL, " +
 			"created INTEGER DEFAULT 0, " +
 			"uses INTEGER DEFAULT 99999999, " +
@@ -101,15 +100,52 @@ func (s *AccessTokenManager) createTable(usertable, idfield string) error {
 	return nil
 }
 
-func (s *AccessTokenManager) InsertEternal(user int64, uses int64, path string) (*AccessToken, error) {
+func (s *AccessTokenManager) Count() (int, error) {
+	db := s.db.ConcurrentDB()
+	tn := db.QuoteTableName(s.table)
+
+	c := models.Count{}
+
+	err := db.NewQuery(
+		"SELECT COUNT(*) AS count FROM " + tn).One(&c)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	} else if err != nil {
+		return 0, err
+	}
+
+	return c.Count, nil
+}
+
+// Creating an AT with user defined values is considered unsafe
+func (s *AccessTokenManager) InsertUnsafe(at *AccessToken) error {
+	if at == nil {
+		return errors.New("at is nil")
+	}
+
+	if at.Creator == 0 {
+		return ErrUserInvalid
+	}
+
+	if at.Path == "" {
+		return PathInvalid
+	}
+
+	db := s.db.NonConcurrentDB()
+	return db.Model(at).Insert()
+}
+
+// TODO: maybe eternal ats are a bad idea
+// Eternal ATs can only used once, but they never expire
+func (s *AccessTokenManager) InsertEternal(user int64, path string) (*AccessToken, error) {
 	n := AccessToken{
 		Record:  models.NewRecord(),
 		Creator: user,
-		Uses:    uses,
+		Uses:    1,
 		Path:    path,
 	}
 
-	tok, err := CreateRandomToken()
+	tok, err := security.CreateRandomSHA256Token()
 	if err != nil {
 		return nil, err
 	}
@@ -135,14 +171,14 @@ func (s *AccessTokenManager) Insert(user int64, uses int64, path string, short b
 
 	var dexp time.Duration
 	if short {
-		dexp, _ = time.ParseDuration(strconv.Itoa(s.short_exp) + "s")
+		dexp = time.Duration(s.short_exp) * time.Second
 	} else {
-		dexp, _ = time.ParseDuration(strconv.Itoa(s.long_exp) + "s")
+		dexp = time.Duration(s.long_exp) * time.Second
 	}
 
 	n.Expires = n.Created.Add(dexp)
 
-	tok, err := CreateRandomToken()
+	tok, err := security.CreateRandomSHA256Token()
 	if err != nil {
 		return nil, err
 	}
@@ -200,14 +236,14 @@ func (s *AccessTokenManager) SelectByAccessToken(token string, path string) (*Ac
 		return nil, ErrAccessTokenInvalidPath
 	}
 
-	if se.Uses >= 1 {
-		se.Uses = se.Uses - 1
-		s.Update(&se)
-	}
-
+	// TODO: This means I get notified on token reuse, but we we still will have a lot of
+	// tokens in the database with Uses = 0. Maybe instead delete after decresing se.Uses?
 	if se.Uses < 1 {
 		s.DeleteByAccessToken(se.Token)
 		return nil, ErrAccessTokenReused
+	} else {
+		se.Uses = se.Uses - 1
+		s.Update(&se)
 	}
 
 	return &se, nil
@@ -218,27 +254,4 @@ func (atm *AccessTokenManager) Update(at *AccessToken) error {
 	at.Modified = types.NowDateTime()
 	err := db.Model(at).Update()
 	return err
-}
-
-func CreateRandomToken() (string, error) {
-	// We use 256 bits of crypto/rand to generate a random token
-	// We append the timestamp to make sure our seed is unique
-	// Then we hash the result with sha256
-	t := make([]byte, binary.MaxVarintLen64)
-	_ = binary.PutVarint(t, time.Now().Unix())
-
-	c := 256
-	b := make([]byte, c)
-
-	_, err := rand.Read(b)
-	if err != nil {
-		return "", err
-	}
-
-	all := append(b, t...)
-	hash := sha256.Sum256(all)
-
-	// Sadly, 32 bits dont align to 6 bits, so there will be some padding
-	bas := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(hash[:])
-	return bas, nil
 }

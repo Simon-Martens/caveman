@@ -16,20 +16,23 @@ const (
 	DEFAULT_LOGS_MAX_OPEN_CONNS int = 10
 	DEFAULT_LOGS_MAX_IDLE_CONNS int = 2
 
-	DEFAULT_LOCAL_STORAGE_DIR_NAME string = "storage"
-	DEFAULT_BACKUPS_DIR_NAME       string = "backups"
+	DEFAULT_LOCAL_STORAGE_DIR string = "storage"
+	DEFAULT_BACKUPS_DIR       string = "backups"
 
 	// TODO: true for dev purposes
-	DEFAULT_DEV_MODE           bool   = true
-	DEFAULT_TEST_DATA_DIR_NAME string = "test_data"
-	DEFAULT_DATA_DIR_NAME      string = "cm_data"
-	DEFAULT_DATA_FILE_NAME     string = "data.db"
+	DEFAULT_DEV_MODE      bool   = true
+	DEFAULT_TEST_DATA_DIR string = "test_data"
+	DEFAULT_DATA_DIR      string = "cm_data"
+	DEFAULT_DATA_FILE     string = "data.db"
 
-	DEFAULT_SESSIONS_TABLE_NAME      string = "__sessions"
-	DEFAULT_ACCESS_TOKENS_TABLE_NAME string = "__access_tokens"
-	DEFAULT_USERS_TABLE_NAME         string = "__users"
-	DEFAULT_MIGRATIONS_TABLE_NAME    string = "__migrations"
-	DEFAULT_ID_FIELD                 string = "id"
+	DEFAULT_SESSIONS_TABLE      string = "__sessions"
+	DEFAULT_ACCESS_TOKENS_TABLE string = "__access_tokens"
+	DEFAULT_USERS_TABLE         string = "__users"
+	DEFAULT_MIGRATIONS_TABLE    string = "__migrations"
+	DEFAULT_DATASTORE_TABLE     string = "__datastore"
+	DEFAULT_ID_FIELD            string = "id"
+
+	DATASTORE_SETTINGS_KEY string = "sets"
 
 	DEFAULT_USER_EXPIRATION          int = 60 * 60 * 24 * (365 * 10) // ~10 years
 	DEFAULT_SHORT_SESSION_EXPIRATION int = 60 * 60 * 2               // 2 hours

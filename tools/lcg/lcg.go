@@ -1,10 +1,5 @@
 package lcg
 
-import (
-	"math/big"
-	"math/rand"
-)
-
 const ZERO uint64 = 0
 const ONE uint64 = 1
 
@@ -60,12 +55,4 @@ func (l *LCG) Skip(skip int64) {
 	}
 
 	l.seed = a_next*l.seed + c_next
-}
-
-func GenRandomUIntNotPrime() uint64 {
-	n := rand.Uint64()
-	if big.NewInt(int64(n)).ProbablyPrime(0) {
-		return GenRandomUIntNotPrime()
-	}
-	return n
 }

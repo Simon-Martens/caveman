@@ -3,12 +3,12 @@ package users
 import (
 	"database/sql"
 	"errors"
-	"strconv"
 	"time"
 
 	"github.com/Simon-Martens/caveman/db"
 	"github.com/Simon-Martens/caveman/models"
 	"github.com/Simon-Martens/caveman/tools/lcg"
+	"github.com/Simon-Martens/caveman/tools/security"
 	"github.com/Simon-Martens/caveman/tools/types"
 	"github.com/pocketbase/dbx"
 	"golang.org/x/crypto/bcrypt"
@@ -25,10 +25,11 @@ type UserManager struct {
 	table   string
 	idfield string
 
-	lcg *lcg.LCG
+	user_exp int
+	lcg      *lcg.LCG
 }
 
-func New(db *db.DB, tablename, idfield string, lcg_seed uint64) (*UserManager, error) {
+func New(db *db.DB, tablename, idfield string, user_exp int, lcg_seed uint64) (*UserManager, error) {
 	if db == nil {
 		return nil, errors.New("db is nil")
 	}
@@ -42,7 +43,7 @@ func New(db *db.DB, tablename, idfield string, lcg_seed uint64) (*UserManager, e
 	}
 
 	if lcg_seed == 0 {
-		lcg_seed = lcg.GenRandomUIntNotPrime()
+		lcg_seed = security.GenRandomUIntNotPrime()
 	}
 
 	lcg := lcg.New(lcg_seed)
@@ -75,7 +76,7 @@ func (s *UserManager) createTable(idfield string) error {
 	q := ncdb.NewQuery(
 		"CREATE TABLE IF NOT EXISTS " +
 			tn +
-			" (" + idfield + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+			" (" + idfield + " INTEGER PRIMARY KEY, " +
 			"email TEXT, " +
 			"name TEXT, " +
 			"user_data BLOB, " +
@@ -176,7 +177,7 @@ func (s *UserManager) Insert(user *User, pw string) (*User, error) {
 	user.Record = models.NewRecord()
 	user.ID = int64(s.lcg.Next())
 
-	pusexp, _ := time.ParseDuration(strconv.Itoa(models.DEFAULT_USER_EXPIRATION) + "s")
+	pusexp := time.Duration(s.user_exp) * time.Second
 	user.Expires = user.Created.Add(pusexp)
 
 	err = db.Model(user).Insert()

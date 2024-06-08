@@ -7,10 +7,11 @@ import (
 
 	"github.com/Simon-Martens/caveman/db"
 	"github.com/Simon-Martens/caveman/db/accesstokens"
+	"github.com/Simon-Martens/caveman/db/datastore"
 	"github.com/Simon-Martens/caveman/db/sessions"
 	"github.com/Simon-Martens/caveman/db/users"
 	"github.com/Simon-Martens/caveman/models"
-	"github.com/Simon-Martens/caveman/tools/lcg"
+	"github.com/Simon-Martens/caveman/tools/security"
 )
 
 type DatabaseEnv struct {
@@ -18,6 +19,7 @@ type DatabaseEnv struct {
 	UM  *users.UserManager
 	SM  *sessions.SessionManager
 	ATM *accesstokens.AccessTokenManager
+	DSM *datastore.DataStoreManager
 }
 
 func TestNewDatabaseEnv(T *testing.T) *DatabaseEnv {
@@ -28,7 +30,11 @@ func TestNewDatabaseEnv(T *testing.T) *DatabaseEnv {
 		T.Fatal(err)
 	}
 
-	um, err := users.New(db, models.DEFAULT_USERS_TABLE_NAME, models.DEFAULT_ID_FIELD, lcg.GenRandomUIntNotPrime())
+	um, err := users.New(db,
+		models.DEFAULT_USERS_TABLE_NAME,
+		models.DEFAULT_ID_FIELD,
+		models.DEFAULT_USER_EXPIRATION,
+		security.GenRandomUIntNotPrime())
 	if err != nil {
 		T.Fatal(err)
 	}
@@ -39,7 +45,7 @@ func TestNewDatabaseEnv(T *testing.T) *DatabaseEnv {
 		models.DEFAULT_ID_FIELD,
 		models.DEFAULT_LONG_SESSION_EXPIRATION,
 		models.DEFAULT_SHORT_SESSION_EXPIRATION,
-		lcg.GenRandomUIntNotPrime(),
+		security.GenRandomUIntNotPrime(),
 	)
 	if err != nil {
 		T.Fatal(err)
@@ -55,7 +61,14 @@ func TestNewDatabaseEnv(T *testing.T) *DatabaseEnv {
 		T.Fatal(err)
 	}
 
-	return &DatabaseEnv{db, um, sm, atm}
+	ds, err := datastore.New(db,
+		models.DEFAULT_DATASTORE_TABLE_NAME,
+		models.DEFAULT_ID_FIELD)
+	if err != nil {
+		T.Fatal(err)
+	}
+
+	return &DatabaseEnv{db, um, sm, atm, ds}
 }
 
 func Path() string {

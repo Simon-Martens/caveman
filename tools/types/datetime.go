@@ -58,7 +58,7 @@ func (d DateTime) String() string {
 }
 
 func (d DateTime) Int() int64 {
-	return d.t.Unix()
+	return d.t.UnixMicro()
 }
 
 // MarshalJSON implements the [json.Marshaler] interface.
@@ -99,7 +99,13 @@ func (d *DateTime) Scan(value any) error {
 			}
 			d.t = t
 		}
-	case int, int64, int32, uint, uint64, uint32:
+	case int64:
+		if v == 0 {
+			d.t = time.Time{}
+		} else {
+			d.t = time.UnixMicro(v)
+		}
+	case int, int32, uint, uint64, uint32:
 		if v == 0 {
 			d.t = time.Time{}
 		} else {

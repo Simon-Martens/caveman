@@ -5,11 +5,13 @@ import (
 	"encoding/binary"
 	"strconv"
 	"testing"
+
+	"github.com/Simon-Martens/caveman/tools/security"
 )
 
 // Logging is the slowest part about this
 func TestLCG(t *testing.T) {
-	seed := GenRandomUIntNotPrime()
+	seed := security.GenRandomUIntNotPrime()
 
 	t.Log("Seed: " + strconv.FormatInt(int64(seed), 10))
 

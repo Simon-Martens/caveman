@@ -2,12 +2,9 @@ package sessions
 
 import (
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
-	"crypto/sha512"
 	"database/sql"
 	"encoding/base64"
-	"encoding/binary"
 	"errors"
 	"strconv"
 	"time"
@@ -15,6 +12,7 @@ import (
 	"github.com/Simon-Martens/caveman/db"
 	"github.com/Simon-Martens/caveman/models"
 	"github.com/Simon-Martens/caveman/tools/lcg"
+	"github.com/Simon-Martens/caveman/tools/security"
 	"github.com/pocketbase/dbx"
 )
 
@@ -48,13 +46,13 @@ func New(db *db.DB, tablename, usertable, idfield string, l_exp, s_exp int, lcg_
 	}
 
 	// HMAC secret for CSRF token get lost if server is restarted
-	hmacs, err := CreateHMACSecret()
+	hmacs, err := security.CreateSecretArray(1024, 10)
 	if err != nil {
 		return nil, err
 	}
 
 	if lcg_seed == 0 {
-		lcg_seed = lcg.GenRandomUIntNotPrime()
+		lcg_seed = security.GenRandomUIntNotPrime()
 	}
 
 	lcg := lcg.New(lcg_seed)
@@ -69,14 +67,13 @@ func New(db *db.DB, tablename, usertable, idfield string, l_exp, s_exp int, lcg_
 	}
 
 	err = s.createTable(usertable, idfield)
+	if err != nil {
+		return nil, err
+	}
 
 	c, _ := s.Count()
 	if c > 0 {
 		s.lcg.Skip(int64(c))
-	}
-
-	if err != nil {
-		return nil, err
 	}
 
 	return s, nil
@@ -92,10 +89,10 @@ func (s *SessionManager) createTable(usertable, idfield string) error {
 		"CREATE TABLE IF NOT EXISTS " +
 			tn +
 			" (" + idfield + " INTEGER PRIMARY KEY NOT NULL, " +
-			"session STRING NOT NULL, " +
-			"session_data STRING, " +
-			"ip STRING, " +
-			"agent STRING, " +
+			"session TEXT NOT NULL COLLATE BINARY, " +
+			"session_data TEXT, " +
+			"ip TEXT, " +
+			"agent TEXT, " +
 			"created INTEGER DEFAULT 0, " +
 			"modified INTEGER DEFAULT 0, " +
 			"expires INTEGER DEFAULT 0, " +
@@ -130,7 +127,7 @@ func (s *SessionManager) InsertEternal(user int64, agent string, ip string) (*Se
 		ID:     int64(s.lcg.Next()),
 	}
 
-	tok, err := CreateRandomToken()
+	tok, err := security.CreateRandomSHA512Token()
 	if err != nil {
 		return nil, err
 	}
@@ -157,14 +154,14 @@ func (s *SessionManager) Insert(user int64, short bool, agent string, ip string)
 
 	var dexp time.Duration
 	if short {
-		dexp, _ = time.ParseDuration(strconv.Itoa(s.short_exp) + "s")
+		dexp = time.Duration(s.short_exp) * time.Second
 	} else {
-		dexp, _ = time.ParseDuration(strconv.Itoa(s.long_exp) + "s")
+		dexp = time.Duration(s.long_exp) * time.Second
 	}
 
 	n.Expires = n.Created.Add(dexp)
 
-	tok, err := CreateRandomToken()
+	tok, err := security.CreateRandomSHA512Token()
 	if err != nil {
 		return nil, err
 	}
@@ -230,39 +227,6 @@ func (s *SessionManager) Count() (int, error) {
 	}
 
 	return c.Count, nil
-}
-
-func CreateRandomToken() (string, error) {
-	// We use 256 bits of crypto/rand to generate a random token
-	// We append the timestamp to make sure our seed is unique
-	// Then we hash the result with sha512
-	t := make([]byte, binary.MaxVarintLen64)
-	_ = binary.PutVarint(t, time.Now().Unix())
-
-	c := 256
-	b := make([]byte, c)
-
-	_, err := rand.Read(b)
-	if err != nil {
-		return "", err
-	}
-
-	all := append(b, t...)
-	hash := sha512.Sum512(all)
-
-	// Sadly, 64 bits dont align to 6 bits, so there will be some padding
-	bas := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(hash[:])
-	return bas, nil
-}
-
-func CreateHMACSecret() ([]byte, error) {
-	b := make([]byte, 2048)
-	_, err := rand.Read(b)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
 }
 
 func (s *SessionManager) CreateCSRFToken(session *Session) string {
