@@ -24,7 +24,7 @@ type User struct {
 }
 
 func (u User) TableName() string {
-	return models.DEFAULT_USERS_TABLE_NAME
+	return models.DEFAULT_USERS_TABLE
 }
 
 func (s User) PrimaryKey() string {

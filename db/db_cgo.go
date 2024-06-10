@@ -9,6 +9,7 @@ import (
 	"github.com/pocketbase/dbx"
 )
 
+// TODO: do we use memory mapped I/O and which signals must be handled?
 func init() {
 	// Registers the sqlite3 driver with a ConnectHook so that we can
 	// initialize the default PRAGMAs.

@@ -17,5 +17,5 @@ type AccessToken struct {
 }
 
 func (a AccessToken) TableName() string {
-	return models.DEFAULT_ACCESS_TOKENS_TABLE_NAME
+	return models.DEFAULT_ACCESS_TOKENS_TABLE
 }

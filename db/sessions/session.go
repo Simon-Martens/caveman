@@ -20,7 +20,7 @@ type Session struct {
 }
 
 func (s Session) TableName() string {
-	return models.DEFAULT_SESSIONS_TABLE_NAME
+	return models.DEFAULT_SESSIONS_TABLE
 }
 
 func (s Session) PrimaryKey() string {

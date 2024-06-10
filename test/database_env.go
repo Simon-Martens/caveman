@@ -31,7 +31,7 @@ func TestNewDatabaseEnv(T *testing.T) *DatabaseEnv {
 	}
 
 	um, err := users.New(db,
-		models.DEFAULT_USERS_TABLE_NAME,
+		models.DEFAULT_USERS_TABLE,
 		models.DEFAULT_ID_FIELD,
 		models.DEFAULT_USER_EXPIRATION,
 		security.GenRandomUIntNotPrime())
@@ -40,8 +40,8 @@ func TestNewDatabaseEnv(T *testing.T) *DatabaseEnv {
 	}
 
 	sm, err := sessions.New(db,
-		models.DEFAULT_SESSIONS_TABLE_NAME,
-		models.DEFAULT_USERS_TABLE_NAME,
+		models.DEFAULT_SESSIONS_TABLE,
+		models.DEFAULT_USERS_TABLE,
 		models.DEFAULT_ID_FIELD,
 		models.DEFAULT_LONG_SESSION_EXPIRATION,
 		models.DEFAULT_SHORT_SESSION_EXPIRATION,
@@ -52,8 +52,8 @@ func TestNewDatabaseEnv(T *testing.T) *DatabaseEnv {
 	}
 
 	atm, err := accesstokens.New(db,
-		models.DEFAULT_ACCESS_TOKENS_TABLE_NAME,
-		models.DEFAULT_USERS_TABLE_NAME,
+		models.DEFAULT_ACCESS_TOKENS_TABLE,
+		models.DEFAULT_USERS_TABLE,
 		models.DEFAULT_ID_FIELD,
 		models.DEFAULT_LONG_RESOURCE_SESSION_EXPIRATION,
 		models.DEFAULT_SHORT_RESOURCE_SESSION_EXPIRATION)
@@ -62,7 +62,7 @@ func TestNewDatabaseEnv(T *testing.T) *DatabaseEnv {
 	}
 
 	ds, err := datastore.New(db,
-		models.DEFAULT_DATASTORE_TABLE_NAME,
+		models.DEFAULT_DATASTORE_TABLE,
 		models.DEFAULT_ID_FIELD)
 	if err != nil {
 		T.Fatal(err)
@@ -72,8 +72,8 @@ func TestNewDatabaseEnv(T *testing.T) *DatabaseEnv {
 }
 
 func Path() string {
-	_ = os.MkdirAll(models.DEFAULT_TEST_DATA_DIR_NAME, os.ModePerm)
-	return filepath.Join(models.DEFAULT_TEST_DATA_DIR_NAME, models.DEFAULT_DATA_FILE_NAME)
+	_ = os.MkdirAll(models.DEFAULT_TEST_DATA_DIR, os.ModePerm)
+	return filepath.Join(models.DEFAULT_TEST_DATA_DIR, models.DEFAULT_DATA_FILE)
 }
 
 func (dbenv *DatabaseEnv) Close() {
@@ -83,5 +83,5 @@ func (dbenv *DatabaseEnv) Close() {
 }
 
 func Clean() {
-	os.RemoveAll(models.DEFAULT_TEST_DATA_DIR_NAME)
+	os.RemoveAll(models.DEFAULT_TEST_DATA_DIR)
 }

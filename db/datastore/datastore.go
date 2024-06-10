@@ -13,7 +13,7 @@ type DataStore struct {
 }
 
 func (s DataStore) TableName() string {
-	return models.DEFAULT_DATASTORE_TABLE_NAME
+	return models.DEFAULT_DATASTORE_TABLE
 }
 
 type Data interface {
