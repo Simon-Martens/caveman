@@ -55,10 +55,24 @@ const (
 </html>`
 )
 
+type RegistryOptions struct {
+	Extension     string
+	InhFilePrefix string
+}
+
+func DefaultRegistryOptions() RegistryOptions {
+	return RegistryOptions{
+		Extension:     FILE_FORMAT,
+		InhFilePrefix: GLOBAL_FILE_PREFIX,
+	}
+}
+
 // Registry defines a templates registry that is safe to be used by multiple goroutines.
 //
 // Use the Registry.Load* methods to load templates into the registry.
 type Registry struct {
+	options RegistryOptions
+
 	routes fs.FS
 	cache  *store.Store[*Template]
 	funcs  template.FuncMap
@@ -82,10 +96,11 @@ func (dir Dir) String() string {
 // some defaults (eg. global "raw" template function for unescaped HTML).
 //
 // Use the Registry.Load* methods to load templates into the registry.
-func NewRegistry(routes fs.FS) *Registry {
+func NewRegistry(routes fs.FS, options RegistryOptions) *Registry {
 	return &Registry{
-		routes: routes,
-		cache:  store.New[*Template](nil),
+		options: options,
+		routes:  routes,
+		cache:   store.New[*Template](nil),
 		funcs: template.FuncMap{
 			"raw": func(str string) template.HTML {
 				return template.HTML(str)
@@ -95,15 +110,17 @@ func NewRegistry(routes fs.FS) *Registry {
 }
 
 func (r *Registry) read_dir(path string) (*Dir, error) {
+	ext := r.options.Extension
+	pref := r.options.InhFilePrefix
 	dir := Dir{
 		basepath: path,
 	}
 
 	glob := path
 	if len(path) > 0 {
-		glob = path + "/*." + FILE_FORMAT
+		glob = path + "/*." + ext
 	} else {
-		glob = path + "*." + FILE_FORMAT
+		glob = path + "*." + ext
 	}
 
 	log.Println("Looking for files: " + glob)
@@ -119,13 +136,13 @@ func (r *Registry) read_dir(path string) (*Dir, error) {
 		log.Println("Match: " + m)
 		name := f.Name()
 
-		if name == "body."+FILE_FORMAT {
+		if name == "body."+ext {
 			dir.body = m
-		} else if name == "head."+FILE_FORMAT {
+		} else if name == "head."+ext {
 			dir.head = m
-		} else if name == "headers."+FILE_FORMAT {
+		} else if name == "headers."+ext {
 			dir.headers = m
-		} else if name == GLOBAL_FILE_PREFIX+"root."+FILE_FORMAT {
+		} else if name == pref+"root."+ext {
 			// TODO Root must not be appended unconditionally. It must have a head and a body
 			// TODO we search the tree for body and head template invocations
 			str, err := r.file_to_string(m)
@@ -146,7 +163,7 @@ func (r *Registry) read_dir(path string) (*Dir, error) {
 			}
 
 			dir.root = m
-		} else if strings.HasPrefix(name, GLOBAL_FILE_PREFIX) {
+		} else if strings.HasPrefix(name, r.options.InhFilePrefix) {
 			log.Println("Adding component " + m)
 			dir.components = append(dir.components, m)
 		} else {
@@ -155,7 +172,7 @@ func (r *Registry) read_dir(path string) (*Dir, error) {
 
 	}
 	if err != nil {
-		return nil, errors.New("Keine .tmpl-Files im Verzeichnis " + path + " gefunden.")
+		return nil, errors.New("Keine Template-Files im Verzeichnis " + path + " gefunden.")
 	}
 
 	return &dir, nil
@@ -227,6 +244,8 @@ func (r *Registry) AddFuncs(funcs map[string]any) *Registry {
 // header.tmpl files are parsed seperately into response headers
 // (we skip the dir if no index + no body + no header is present)
 func (r *Registry) LoadDir(path string) (*Template, error) {
+	ext := r.options.Extension
+
 	path = normalize_path(path)
 	path = filepath.Clean(path)
 	found := r.cache.Get(path)
@@ -240,7 +259,7 @@ func (r *Registry) LoadDir(path string) (*Template, error) {
 		return nil, err
 	}
 
-	tpl := template.New(GLOBAL_FILE_PREFIX + "root." + FILE_FORMAT).Funcs(r.funcs)
+	tpl := template.New(r.options.InhFilePrefix + "root." + ext).Funcs(r.funcs)
 	if len(dir.root) == 0 {
 		tpl, err = tpl.Parse(DEFAULT_ROOT)
 		if err != nil {
@@ -299,7 +318,7 @@ func (r *Registry) LoadDir(path string) (*Template, error) {
 	}
 
 	if len(dir.headers) > 0 {
-		temp.Headers, err = template.New("headers."+FILE_FORMAT).Funcs(r.funcs).Funcs(sprig.FuncMap()).ParseFS(r.routes, dir.headers)
+		temp.Headers, err = template.New("headers."+ext).Funcs(r.funcs).Funcs(sprig.FuncMap()).ParseFS(r.routes, dir.headers)
 		if err != nil {
 			return nil, err
 		}
@@ -311,6 +330,7 @@ func (r *Registry) LoadDir(path string) (*Template, error) {
 }
 
 func (r *Registry) LoadFile(path string) (*Template, error) {
+	ext := r.options.Extension
 	path = normalize_path(path)
 	path = filepath.Clean(path)
 	found := r.cache.Get(path)
@@ -320,7 +340,7 @@ func (r *Registry) LoadFile(path string) (*Template, error) {
 	}
 
 	d, f := filepath.Split(path)
-	f = f + "." + FILE_FORMAT
+	f = f + "." + ext
 	dir, err := r.read_dir_recursively(filepath.Clean(d))
 	if err != nil {
 		return nil, err
@@ -328,7 +348,7 @@ func (r *Registry) LoadFile(path string) (*Template, error) {
 
 	tpl := template.New(f).Funcs(r.funcs)
 
-	tpl, err = tpl.ParseFS(r.routes, path+"."+FILE_FORMAT)
+	tpl, err = tpl.ParseFS(r.routes, path+"."+ext)
 	if err != nil {
 		return nil, err
 	}

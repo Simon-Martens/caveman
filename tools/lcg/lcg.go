@@ -2,6 +2,7 @@ package lcg
 
 const ZERO uint64 = 0
 const ONE uint64 = 1
+const MAX uint64 = 0x0000FFFFFFFFFFFF
 
 // LCG is a linear congruential generator to generate pseudo-random numbers
 // and fill out a 2^64 byte space without hitting the same number twice.
@@ -26,16 +27,15 @@ func (l *LCG) Next() uint64 {
 
 func (l *LCG) Skip(skip int64) {
 	/*
-		Signed argument - skip forward as well as backward
+		  -> F. Brown, "Random Number Generation with Arbitrary Stride," 1994
 
-		The algorithm here to determine the parameters used to skip ahead is
-		described in the paper F. Brown, "Random Number Generation with Arbitrary Stride,"
-		Trans. Am. Nucl. Soc. (Nov. 1994). This algorithm is able to skip ahead in
-		O(log2(N)) operations instead of O(N). It computes parameters
-		A and C which can then be used to find x_N = A*x_0 + C mod 2^M.
+			Complexity: O(log2(N)), not O(N).
+
+			It computes parameters A and C which can then be used to find
+			x_N = A*x_0 + C mod 2^M.
 	*/
 
-	nskip := uint64(skip)
+	delta := uint64(skip)
 
 	a := l.a
 	c := l.c
@@ -43,15 +43,15 @@ func (l *LCG) Skip(skip int64) {
 	a_next := ONE
 	c_next := ZERO
 
-	for nskip > 0 {
-		if (nskip & ONE) != ZERO {
+	for delta > 0 {
+		if (delta & ONE) != ZERO {
 			a_next = a_next * a
 			c_next = c_next*a + c
 		}
 		c = (a + ONE) * c
 		a = a * a
 
-		nskip = nskip >> ONE
+		delta = delta >> ONE
 	}
 
 	l.seed = a_next*l.seed + c_next

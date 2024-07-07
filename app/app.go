@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -24,7 +25,6 @@ import (
 type App struct {
 	RootCmd *cobra.Command
 
-	registry *templates.Registry
 	store    *store.Store[any]
 	settings *models.Settings
 	logger   *slog.Logger
@@ -34,6 +34,9 @@ type App struct {
 	sessions  *sessions.SessionManager
 	datastore *datastore.DataStoreManager
 	tokens    *accesstokens.AccessTokenManager
+
+	systemregistry *templates.Registry
+	userregistry   *templates.Registry
 
 	isDev   bool
 	dataDir string
@@ -63,7 +66,6 @@ func (a *App) Bootstrap() error {
 		return err
 	}
 
-	a.registry = templates.NewRegistry(frontend.RoutesFS)
 	a.store = store.New(map[string]interface{}{})
 
 	// ensure that data dir exist
@@ -133,6 +135,10 @@ func (a *App) Bootstrap() error {
 		return err
 	}
 
+	if err := a.InitDefaultTemplateRegistry(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -191,13 +197,18 @@ func (a *App) SetupState() int {
 }
 
 func (a *App) IsBootstrapped() bool {
-	return a.store != nil || a.db != nil || a.logger != nil || a.registry != nil
+	return a.store != nil || a.db != nil || a.logger != nil || a.systemregistry != nil
 }
 
 func (a *App) ResetBootstrapState() error {
 	a.store = nil
 	a.logger = nil
-	a.registry = nil
+	a.systemregistry = nil
+
+	a.sessions = nil
+	a.users = nil
+	a.datastore = nil
+	a.tokens = nil
 
 	// We do this last since it can err
 	if a.db != nil {
@@ -244,8 +255,12 @@ func (a *App) Settings() *models.Settings {
 	return a.settings
 }
 
+func (a *App) SystemRegistry() *templates.Registry {
+	return a.systemregistry
+}
+
 func (a *App) Registry() *templates.Registry {
-	return a.registry
+	return a.userregistry
 }
 
 // INFO: every init function must make sure of it's own dependencies
@@ -342,5 +357,15 @@ func (a *App) InitTokens(db *db.DB, atn, utn, idfield string, lressexp, sressexp
 		return err
 	}
 	a.tokens = tm
+	return nil
+}
+
+func (a *App) InitDefaultTemplateRegistry() error {
+	a.systemregistry = templates.NewRegistry(frontend.RoutesFS, templates.DefaultRegistryOptions())
+	return nil
+}
+
+func (a *App) InitUserTemplateRegistry(fs fs.FS, opt templates.RegistryOptions) error {
+	a.userregistry = templates.NewRegistry(fs, opt)
 	return nil
 }
