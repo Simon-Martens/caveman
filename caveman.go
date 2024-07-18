@@ -19,6 +19,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// TODO: we don't need to parse command line flags since we are not a command line
+// application. Maybe just keep some cobra commands in the cmd/ directory to be
+// available to applications.
+
 // Caveman defines a Caveman apppplication
 // It embeds the App methods (providing all kinds of low-level access)
 // But here are some higher-level methods given for convenience. Also,
