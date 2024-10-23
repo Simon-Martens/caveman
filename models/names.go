@@ -1,8 +1,8 @@
 package models
 
 // WARNING: These are initialization variables. Changing them is currently unsupported but should safely change app behavior
-// prior to first initialization of the app. Changing them after initialization (e.g. after rebooting) will lead to
-// unexpected behavior or/and even data loss.
+// prior to first initialization of the db. Changing them after initialization (e.g. after rebooting, while running) will lead
+// to unexpected behavior and might result in data loss!
 var (
 	VERSION                       = "0.1.0"
 	STORE_KEY_SETUP_STATE         = "setup"

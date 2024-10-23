@@ -14,8 +14,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// TODO: bcrypt has a size limit of 72 bytes for the password. This should be checked and handled.
-// Otherwise, switch to argon2id, and save the salt along with the hash in the table.
+// INFO: bcrypt has a size limit of 72 bytes for the password. This should be checked and handled.
+// Apple strong passwords contain 71 bits of entropy, we should be fine with this approach.
+// ALT: switch to argon2id, and save the salt along with the hash in the table.
 var ErrUserNotFound = errors.New("user not found")
 var ErrWrongPassword = errors.New("wrong password")
 var ErrHIDChanged = errors.New("HID is not allowed to be changed")
@@ -143,8 +144,6 @@ func (s *UserManager) SelectByEmail(email string) (*User, error) {
 	return &user, nil
 }
 
-// TODO: Implement peppering of passwords
-// So hackers cant't do anything if the table is stolen but the process space is intact
 func (s *UserManager) CheckPassword(user *User, pw string) error {
 	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(pw))
 	return err
@@ -178,7 +177,7 @@ func (s *UserManager) Insert(user *User, pw string) (*User, error) {
 	user.ID = int64(s.lcg.Next())
 
 	pusexp := time.Duration(s.user_exp) * time.Second
-	user.Expires = user.Created.Add(pusexp)
+	user.Expires, _ = user.Created.Add(pusexp)
 
 	err = db.Model(user).Insert()
 

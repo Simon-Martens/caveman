@@ -176,7 +176,7 @@ func (s *AccessTokenManager) Insert(user int64, uses int64, path string, short b
 		dexp = time.Duration(s.long_exp) * time.Second
 	}
 
-	n.Expires = n.Created.Add(dexp)
+	n.Expires, _ = n.Created.Add(dexp)
 
 	tok, err := security.CreateRandomSHA256Token()
 	if err != nil {

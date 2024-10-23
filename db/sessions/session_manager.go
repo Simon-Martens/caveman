@@ -159,7 +159,7 @@ func (s *SessionManager) Insert(user int64, short bool, agent string, ip string)
 		dexp = time.Duration(s.long_exp) * time.Second
 	}
 
-	n.Expires = n.Created.Add(dexp)
+	n.Expires, _ = n.Created.Add(dexp)
 
 	tok, err := security.CreateRandomSHA512Token()
 	if err != nil {
