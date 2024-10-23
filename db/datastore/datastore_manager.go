@@ -3,6 +3,7 @@ package datastore
 import (
 	"database/sql"
 	"errors"
+	"sync"
 
 	"github.com/Simon-Martens/caveman/db"
 	"github.com/Simon-Martens/caveman/models"
@@ -12,10 +13,13 @@ import (
 
 var ErrNotFound = errors.New("not found")
 
+// Holds an in-menory kv store, and syncs it with the db.
+// The sync is done off the main thread, to not block program execution.
 type DataStoreManager struct {
 	db      *db.DB
 	table   string
 	idfield string
+	syncmap sync.Map
 }
 
 func New(db *db.DB, tablename, idfield string) (*DataStoreManager, error) {

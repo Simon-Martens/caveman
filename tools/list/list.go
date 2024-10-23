@@ -2,14 +2,10 @@ package list
 
 import (
 	"encoding/json"
-	"regexp"
 	"strings"
 
-	"github.com/Simon-Martens/caveman/tools/store"
 	"github.com/spf13/cast"
 )
-
-var cachedPatterns = store.New[*regexp.Regexp](nil)
 
 // SubtractSlice returns a new slice with only the "base" elements
 // that don't exist in "subtract".
@@ -29,45 +25,6 @@ func SubtractSlice[T comparable](base []T, subtract []T) []T {
 func ExistInSlice[T comparable](item T, list []T) bool {
 	for _, v := range list {
 		if v == item {
-			return true
-		}
-	}
-
-	return false
-}
-
-// ExistInSliceWithRegex checks whether a string exists in a slice
-// either by direct match, or by a regular expression (eg. `^\w+$`).
-//
-// _Note: Only list items starting with '^' and ending with '$' are treated as regular expressions!_
-func ExistInSliceWithRegex(str string, list []string) bool {
-	for _, field := range list {
-		isRegex := strings.HasPrefix(field, "^") && strings.HasSuffix(field, "$")
-
-		if !isRegex {
-			// check for direct match
-			if str == field {
-				return true
-			}
-			continue
-		}
-
-		// check for regex match
-		pattern := cachedPatterns.Get(field)
-		if pattern == nil {
-			var err error
-			pattern, err = regexp.Compile(field)
-			if err != nil {
-				continue
-			}
-			// "cache" the pattern to avoid compiling it every time
-			// (the limit size is arbitrary and it is there to prevent the cache growing too big)
-			//
-			// @todo consider replacing with TTL or LRU type cache
-			cachedPatterns.SetIfLessThanLimit(field, pattern, 5000)
-		}
-
-		if pattern != nil && pattern.MatchString(str) {
 			return true
 		}
 	}

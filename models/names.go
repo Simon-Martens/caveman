@@ -1,15 +1,12 @@
 package models
 
-const (
-	// ROUTES
-	ASSET_ROUTE    = "assets"
-	CDN_BASE_ROUTE = "cdn"
-	FILE_ROUTE     = "files"
-
-	VERSION               = "0.1.0"
-	STORE_KEY_SETUP_STATE = "setup"
-	STATIC_FILEPATH       = "./frontend/assets"
-	ROUTES_FILEPATH       = "./frontend/routes"
+// WARNING: These are initialization variables. Changing them is currently unsupported but should safely change app behavior
+// prior to first initialization of the app. Changing them after initialization (e.g. after rebooting) will lead to
+// unexpected behavior or/and even data loss.
+var (
+	VERSION                       = "0.1.0"
+	STORE_KEY_SETUP_STATE         = "setup"
+	DATASTORE_SETTINGS_KEY string = "sets"
 
 	DEFAULT_DATA_MAX_OPEN_CONNS int = 120
 	DEFAULT_DATA_MAX_IDLE_CONNS int = 20
@@ -19,11 +16,13 @@ const (
 	DEFAULT_LOCAL_STORAGE_DIR string = "storage"
 	DEFAULT_BACKUPS_DIR       string = "backups"
 
-	// TODO: true for dev purposes
+	// NOTE: true for dev purposes
 	DEFAULT_DEV_MODE      bool   = true
 	DEFAULT_TEST_DATA_DIR string = "test_data"
 	DEFAULT_DATA_DIR      string = "cm_data"
-	DEFAULT_DATA_FILE     string = "data.db"
+	DEFAULT_DATA_FILE     string = "manager.db"
+	DEFAULT_LOGS_FILE     string = "logs.db"
+	DEFAULT_USER_FILE     string = "data.db"
 
 	DEFAULT_SESSIONS_TABLE      string = "__sessions"
 	DEFAULT_ACCESS_TOKENS_TABLE string = "__access_tokens"
@@ -31,8 +30,6 @@ const (
 	DEFAULT_MIGRATIONS_TABLE    string = "__migrations"
 	DEFAULT_DATASTORE_TABLE     string = "__datastore"
 	DEFAULT_ID_FIELD            string = "id"
-
-	DATASTORE_SETTINGS_KEY string = "sets"
 
 	DEFAULT_USER_EXPIRATION          int = 60 * 60 * 24 * (365 * 10) // ~10 years
 	DEFAULT_SHORT_SESSION_EXPIRATION int = 60 * 60 * 2               // 2 hours

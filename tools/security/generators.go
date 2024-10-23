@@ -14,7 +14,7 @@ import (
 
 var ErrNoRandom = errors.New("no randomness available")
 
-// Functions to generate randomness
+// Functions to generate randomness, passwords, hashes, tokens etc.
 
 // This tries to wait a few seconds to get a random number from the system,
 // in case it fails bc the system is busy.

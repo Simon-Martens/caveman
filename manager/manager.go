@@ -1,9 +1,8 @@
-package app
+package manager
 
 import (
 	"encoding/json"
 	"errors"
-	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -13,38 +12,30 @@ import (
 	"github.com/Simon-Martens/caveman/db/datastore"
 	"github.com/Simon-Martens/caveman/db/sessions"
 	"github.com/Simon-Martens/caveman/db/users"
-	"github.com/Simon-Martens/caveman/frontend"
 	"github.com/Simon-Martens/caveman/models"
 	"github.com/Simon-Martens/caveman/tools/security"
-	"github.com/Simon-Martens/caveman/tools/store"
-	"github.com/Simon-Martens/caveman/tools/templates"
-
-	"github.com/spf13/cobra"
 )
 
-type App struct {
-	RootCmd *cobra.Command
+type Manager struct {
+	cm_settings *models.Settings
+	cm_db       *db.DB
 
-	store    *store.Store[any]
-	settings *models.Settings
+	state *datastore.DataStoreManager
+
+	DB       *db.DB
 	logger   *slog.Logger
-	db       *db.DB
+	users    *users.UserManager
+	sessions *sessions.SessionManager
+	tokens   *accesstokens.AccessTokenManager
 
-	users     *users.UserManager
-	sessions  *sessions.SessionManager
-	datastore *datastore.DataStoreManager
-	tokens    *accesstokens.AccessTokenManager
-
-	systemregistry *templates.Registry
-	userregistry   *templates.Registry
-
+	// These settings depend on startup settings, the settings above are read from the database
 	isDev   bool
 	dataDir string
 }
 
-func New(sets models.Config) *App {
+func New(sets models.Config) *Manager {
 
-	app := &App{
+	app := &Manager{
 		dataDir: sets.DataDir,
 		isDev:   sets.Dev,
 	}
@@ -53,34 +44,34 @@ func New(sets models.Config) *App {
 
 // Bootstrap initializes the application, including
 // - database
-// - store (a in memory key-value store)
 // - logger
 // - settings
 // - built-in template registry
 // We do not load user defined templates here; also no routes or middleware
 // as the server is seperately initialized.
-func (a *App) Bootstrap() error {
+func (a *Manager) Bootstrap() error {
 
 	// clear resources of previous core state (if any)
 	if err := a.ResetBootstrapState(); err != nil {
 		return err
 	}
 
-	a.store = store.New(map[string]interface{}{})
-
 	// ensure that data dir exist
 	if err := os.MkdirAll(a.dataDir, os.ModePerm); err != nil {
 		return err
 	}
 
-	if err := a.InitDataDB(
-		models.DEFAULT_DATA_DIR,
+	cm_db, err := a.CreateDB(
+		a.dataDir,
 		models.DEFAULT_DATA_FILE,
 		models.DEFAULT_DATA_MAX_OPEN_CONNS,
 		models.DEFAULT_DATA_MAX_IDLE_CONNS,
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
+
+	a.cm_db = cm_db
 
 	// if err := a.initLogsDB(); err != nil {
 	// 	return err
@@ -90,73 +81,79 @@ func (a *App) Bootstrap() error {
 		return err
 	}
 
-	if err := a.InitDataStoreManager(
-		a.db,
+	if err := a.BootstrapSettings(
+		a.cm_db,
 		models.DEFAULT_DATASTORE_TABLE,
 		models.DEFAULT_ID_FIELD,
+		models.DATASTORE_SETTINGS_KEY,
 	); err != nil {
 		return err
 	}
 
-	if err := a.InitSettings(a.datastore, models.DATASTORE_SETTINGS_KEY); err != nil {
-		return err
-	}
-
-	if err := a.InitUsers(
-		a.db,
+	if err := a.BootstrapAuth(
+		a.cm_db,
 		models.DEFAULT_USERS_TABLE,
-		models.DEFAULT_ID_FIELD,
-		models.DEFAULT_USER_EXPIRATION,
-		a.settings,
-	); err != nil {
-		return err
-	}
-
-	if err := a.InitSessions(
-		a.db,
+		models.DEFAULT_ACCESS_TOKENS_TABLE,
 		models.DEFAULT_SESSIONS_TABLE,
-		models.DEFAULT_USERS_TABLE,
 		models.DEFAULT_ID_FIELD,
 		models.DEFAULT_LONG_SESSION_EXPIRATION,
 		models.DEFAULT_SHORT_SESSION_EXPIRATION,
-		a.settings,
-	); err != nil {
-		return err
-	}
-
-	if err := a.InitTokens(
-		a.db,
-		models.DEFAULT_ACCESS_TOKENS_TABLE,
-		models.DEFAULT_USERS_TABLE,
-		models.DEFAULT_ID_FIELD,
 		models.DEFAULT_LONG_RESOURCE_SESSION_EXPIRATION,
 		models.DEFAULT_SHORT_RESOURCE_SESSION_EXPIRATION,
+		models.DEFAULT_USER_EXPIRATION,
 	); err != nil {
 		return err
 	}
 
-	if err := a.InitDefaultTemplateRegistry(); err != nil {
+	return nil
+}
+
+func (a *Manager) BootstrapSettings(db *db.DB, tn, idf, key string) error {
+	if err := a.InitDataStore(db, tn, idf); err != nil {
+		return err
+	}
+
+	if err := a.InitSettings(a.state, key); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (a *App) Terminate() error {
-	if a.db != nil {
-		if err := a.db.Close(); err != nil {
-			return err
-		}
+func (a *Manager) BootstrapAuth(db *db.DB, tnu, tnat, tns, idf string, lseexp, sseexp, lrsexp, srsexp, uexp int) error {
+	if err := a.InitUsers(db, tnu, idf, uexp, a.cm_settings); err != nil {
+		return err
 	}
 
-	if a.logger != nil {
+	if err := a.InitTokens(db, tnat, tns, idf, lrsexp, srsexp); err != nil {
+		return err
+	}
 
+	if err := a.InitSessions(db, tns, tnu, idf, lseexp, sseexp, a.cm_settings); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func (a *App) RefreshSetupState() int {
+func (a *Manager) Terminate() error {
+	// 	if a.db != nil {
+	// 		if err := a.db.Close(); err != nil {
+	// 			return err
+	// 		}
+	// 	}
+	//
+	// 	if a.logger != nil {
+	//
+	// 	}
+	//
+	// 	return nil
+
+	// TODO:
+	return nil
+}
+
+func (a *Manager) RefreshSetupState() int {
 	return 0
 	// hasAdmins, err := db.HasAdmins(a.papp.Dao())
 	//
@@ -184,35 +181,34 @@ func (a *App) RefreshSetupState() int {
 	// return 3
 }
 
-func (a *App) SetupState() int {
-	s := a.store.Get(models.STORE_KEY_SETUP_STATE)
-	if s == nil {
-		s = a.RefreshSetupState()
-	}
-	if casted, ok := s.(int); ok {
-		return casted
-	} else {
-		panic("Unexpected type for setup state")
-	}
+func (a *Manager) IsBootstrapped() bool {
+	return a.IsUsersBootstrapped() && a.IsSettingsBootstrapped() && a.IsStateBootstrapped()
 }
 
-func (a *App) IsBootstrapped() bool {
-	return a.store != nil || a.db != nil || a.logger != nil || a.systemregistry != nil
+func (a *Manager) IsUsersBootstrapped() bool {
+	return a.users != nil && a.sessions != nil && a.tokens != nil
 }
 
-func (a *App) ResetBootstrapState() error {
-	a.store = nil
+func (a *Manager) IsStateBootstrapped() bool {
+	return a.state != nil
+}
+
+func (a *Manager) IsSettingsBootstrapped() bool {
+	return a.cm_settings != nil
+}
+
+func (a *Manager) ResetBootstrapState() error {
 	a.logger = nil
-	a.systemregistry = nil
 
 	a.sessions = nil
 	a.users = nil
-	a.datastore = nil
+	a.state = nil
 	a.tokens = nil
 
 	// We do this last since it can err
-	if a.db != nil {
-		if err := a.db.Close(); err != nil {
+	// TODO: close all dbs
+	if a.cm_db != nil {
+		if err := a.cm_db.Close(); err != nil {
 			return err
 		}
 	}
@@ -223,7 +219,7 @@ func (a *App) ResetBootstrapState() error {
 // Logger returns the default app logger.
 //
 // If the application is not bootstrapped yet, fallbacks to slog.Default().
-func (app *App) Logger() *slog.Logger {
+func (app *Manager) Logger() *slog.Logger {
 	if app.logger == nil {
 		return slog.Default()
 	}
@@ -231,71 +227,57 @@ func (app *App) Logger() *slog.Logger {
 }
 
 // IsDev returns true if the application is running in development mode.
-func (app *App) IsDev() bool {
+func (app *Manager) IsDev() bool {
 	return app.isDev
 }
 
-func (app *App) Sessions() *sessions.SessionManager {
+func (app *Manager) Sessions() *sessions.SessionManager {
 	return app.sessions
 }
 
-func (app *App) Users() *users.UserManager {
+func (app *Manager) Users() *users.UserManager {
 	return app.users
 }
 
-func (app *App) DataDir() string {
+func (app *Manager) DataDir() string {
 	return app.dataDir
 }
 
-func (app *App) DB() *db.DB {
-	return app.db
-}
-
-func (a *App) Settings() *models.Settings {
-	return a.settings
-}
-
-func (a *App) SystemRegistry() *templates.Registry {
-	return a.systemregistry
-}
-
-func (a *App) Registry() *templates.Registry {
-	return a.userregistry
+func (a *Manager) CMSettings() *models.Settings {
+	return a.cm_settings
 }
 
 // INFO: every init function must make sure of it's own dependencies
-func (app *App) InitLogger() error {
+func (app *Manager) InitLogger() error {
 	// TODO: create a handler, to write logs to the db
 	app.logger = slog.Default()
 	return nil
 }
 
-func (app *App) InitDataDB(dir string, file string, maxopenconns int, maxidleconns int) error {
+func (app *Manager) CreateDB(dir string, file string, maxopenconns int, maxidleconns int) (*db.DB, error) {
 	p := filepath.Join(dir, file)
 	db, err := db.New(p, maxopenconns, maxidleconns)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	app.db = db
 
 	if app.isDev {
 		db.ConnectLogger()
 	}
 
-	return nil
+	return db, nil
 }
 
-func (a *App) InitDataStoreManager(db *db.DB, tablename string, idfield string) error {
+func (a *Manager) InitDataStore(db *db.DB, tablename string, idfield string) error {
 	ds, err := datastore.New(db, tablename, idfield)
 	if err != nil {
 		return err
 	}
-	a.datastore = ds
+	a.state = ds
 	return nil
 }
 
-func (a *App) InitSettings(dsm *datastore.DataStoreManager, key string) error {
+func (a *Manager) InitSettings(dsm *datastore.DataStoreManager, key string) error {
 	if dsm == nil {
 		return errors.New("datastore manager is nil")
 	}
@@ -317,11 +299,11 @@ func (a *App) InitSettings(dsm *datastore.DataStoreManager, key string) error {
 		return err
 	}
 
-	a.settings = sets
+	a.cm_settings = sets
 	return nil
 }
 
-func (a *App) InitSessions(db *db.DB, stn, utn, idfield string, lsessexp, ssessexp int, sets *models.Settings) error {
+func (a *Manager) InitSessions(db *db.DB, stn, utn, idfield string, lsessexp, ssessexp int, sets *models.Settings) error {
 	if sets == nil || db == nil {
 		return errors.New("settings or db is nil")
 	}
@@ -336,7 +318,7 @@ func (a *App) InitSessions(db *db.DB, stn, utn, idfield string, lsessexp, ssesse
 	return nil
 }
 
-func (a *App) InitUsers(db *db.DB, utn, idfield string, uexp int, sets *models.Settings) error {
+func (a *Manager) InitUsers(db *db.DB, utn, idfield string, uexp int, sets *models.Settings) error {
 	if sets == nil || db == nil {
 		return errors.New("settings or db is nil")
 	}
@@ -351,21 +333,11 @@ func (a *App) InitUsers(db *db.DB, utn, idfield string, uexp int, sets *models.S
 	return nil
 }
 
-func (a *App) InitTokens(db *db.DB, atn, utn, idfield string, lressexp, sressexp int) error {
+func (a *Manager) InitTokens(db *db.DB, atn, utn, idfield string, lressexp, sressexp int) error {
 	tm, err := accesstokens.New(db, atn, utn, idfield, lressexp, sressexp)
 	if err != nil {
 		return err
 	}
 	a.tokens = tm
-	return nil
-}
-
-func (a *App) InitDefaultTemplateRegistry() error {
-	a.systemregistry = templates.NewRegistry(frontend.RoutesFS, templates.DefaultRegistryOptions())
-	return nil
-}
-
-func (a *App) InitUserTemplateRegistry(fs fs.FS, opt templates.RegistryOptions) error {
-	a.userregistry = templates.NewRegistry(fs, opt)
 	return nil
 }

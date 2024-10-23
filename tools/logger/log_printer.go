@@ -4,22 +4,22 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 
-	"github.com/Simon-Martens/caveman/tools/store"
 	"github.com/fatih/color"
 	"github.com/spf13/cast"
 )
 
-var cachedColors = store.New[*color.Color](nil)
+var cachedColors = sync.Map{}
 
 // getColor returns [color.Color] object and cache it (if not already).
 func getColor(attrs ...color.Attribute) (c *color.Color) {
 	cacheKey := fmt.Sprint(attrs)
-	if c = cachedColors.Get(cacheKey); c == nil {
+	if c, ok := cachedColors.Load(cacheKey); !ok {
 		c = color.New(attrs...)
-		cachedColors.Set(cacheKey, c)
+		cachedColors.Store(cacheKey, c)
 	}
-	return
+	return c
 }
 
 // printLog prints the provided log to the stderr.

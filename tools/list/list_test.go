@@ -158,37 +158,6 @@ func TestExistInSliceInt(t *testing.T) {
 	}
 }
 
-func TestExistInSliceWithRegex(t *testing.T) {
-	scenarios := []struct {
-		item     string
-		list     []string
-		expected bool
-	}{
-		{"", []string{``}, true},
-		{"", []string{`^\W+$`}, false},
-		{" ", []string{`^\W+$`}, true},
-		{"test", []string{`^\invalid[+$`}, false}, // invalid regex
-		{"test", []string{`^\W+$`, "test"}, true},
-		{`^\W+$`, []string{`^\W+$`, "test"}, false}, // direct match shouldn't work for this case
-		{`\W+$`, []string{`\W+$`, "test"}, true},    // direct match should work for this case because it is not an actual supported pattern format
-		{"!?@", []string{`\W+$`, "test"}, false},    // the method requires the pattern elems to start with '^'
-		{"!?@", []string{`^\W+`, "test"}, false},    // the method requires the pattern elems to end with '$'
-		{"!?@", []string{`^\W+$`, "test"}, true},
-		{"!?@test", []string{`^\W+$`, "test"}, false},
-	}
-
-	for i, scenario := range scenarios {
-		result := list.ExistInSliceWithRegex(scenario.item, scenario.list)
-		if result != scenario.expected {
-			if scenario.expected {
-				t.Errorf("(%d) Expected the string to exist in the list", i)
-			} else {
-				t.Errorf("(%d) Expected the string NOT to exist in the list", i)
-			}
-		}
-	}
-}
-
 func TestToInterfaceSlice(t *testing.T) {
 	scenarios := []struct {
 		items []string

@@ -3,13 +3,10 @@ package caveman
 import (
 	"io"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 
-	"github.com/Simon-Martens/caveman/app"
-	"github.com/Simon-Martens/caveman/cmd"
+	"github.com/Simon-Martens/caveman/manager"
 	"github.com/Simon-Martens/caveman/migrations"
 	"github.com/Simon-Martens/caveman/models"
 	"github.com/Simon-Martens/caveman/tools/list"
@@ -29,9 +26,7 @@ import (
 // the user can give a custom settings struct to run the app with, that
 // optionally can be saved as the most recent settings into the DB.
 type Caveman struct {
-	*app.App
-
-	RootCmd         *cobra.Command
+	*manager.Manager
 	StartupSettings models.Config
 }
 
@@ -42,108 +37,53 @@ func New() *Caveman {
 	return NewWithSettings(models.Config{})
 }
 
-// NewWithSettings creates a new Caveman instance with the provided config.
-//
-// Note that the application will not be initialized/bootstrapped yet,
+// NewWithSettings creates a new Caveman with the provided config.
+// Note that the database manager will not be initialized/bootstrapped yet,
 // aka. DB connections, migrations, app settings, etc. will not be accessible.
-// Everything will be initialized when [Start()] is executed.
-// If you want to initialize the application before calling [Start()],
-// then you'll have to manually call [Bootstrap()].
+// Everything will be initialized when [Bootstrap()] is called.
 func NewWithSettings(settings models.Config) *Caveman {
 	baseDir, dev := inspectRuntime()
 	if settings.DataDir == "" {
 		settings.DataDir = filepath.Join(baseDir, "cm_data")
 	}
 
-	cm := &Caveman{
-		RootCmd: &cobra.Command{
-			Use:     filepath.Base(os.Args[0]),
-			Short:   "Caveman CLI",
-			Version: models.VERSION,
-			FParseErrWhitelist: cobra.FParseErrWhitelist{
-				UnknownFlags: true,
-			},
-			CompletionOptions: cobra.CompletionOptions{
-				DisableDefaultCmd: true,
-			},
-		},
-		StartupSettings: settings,
+	// We force dev mode if run with go run
+	if dev {
+		settings.Dev = true
 	}
 
-	cm.RootCmd.SetErr(newErrWriter())
-
-	// if dev is false up until this point, then the default dev mode can overwrite
-	cm.eagerParseFlags(dev || models.DEFAULT_DEV_MODE)
-
-	cm.App = app.New(cm.StartupSettings)
-
-	cm.RootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
+	cm := &Caveman{StartupSettings: settings}
+	cm.Manager = manager.New(cm.StartupSettings)
 
 	return cm
 }
 
-// Start starts the application, aka. registers the default system
-// commands (serve, migrate, version) and executes cm.RootCmd.
-func (cm *Caveman) Start() error {
-	cm.RootCmd.AddCommand(cmd.CmdServe(cm.App))
-	return cm.Execute()
-}
-
-func (cm *Caveman) Execute() error {
-	if !cm.skipBootstrap() {
-		if err := cm.Bootstrap(); err != nil {
-			return err
-		}
-	}
-
-	done := make(chan bool, 1)
-
-	// gracefully shutdown the application on interrupt signals
-	go func() {
-		sigch := make(chan os.Signal, 1)
-		signal.Notify(sigch, os.Interrupt, syscall.SIGTERM)
-		<-sigch
-
-		done <- true
-	}()
-
-	go func() {
-		cm.Logger().Info("Caveman CLI v " + models.VERSION)
-		cm.RootCmd.Execute()
-
-		done <- true
-	}()
-
-	<-done
-
-	// trigger cleanups
-	return cm.Terminate()
-}
-
-func (cm *Caveman) eagerParseFlags(dev bool) error {
-	cm.RootCmd.PersistentFlags().StringVar(
+// Given a cobra command, this parses the caveman relevant flags.
+func (cm *Caveman) ParseFlags(dev bool, rootCmd *cobra.Command) error {
+	rootCmd.PersistentFlags().StringVar(
 		&cm.StartupSettings.DataDir,
 		"dir",
-		models.DEFAULT_DATA_DIR_NAME,
+		models.DEFAULT_DATA_DIR,
 		"the Caveman data directory",
 	)
 
-	cm.RootCmd.PersistentFlags().BoolVar(
+	rootCmd.PersistentFlags().BoolVar(
 		&cm.StartupSettings.Dev,
 		"dev",
 		dev,
 		"print logs and sql statements to the console",
 	)
 
-	return cm.RootCmd.ParseFlags(os.Args[1:])
+	return rootCmd.ParseFlags(os.Args[1:])
 }
 
 // skicmootstrap eagerly checks if the app should skip the bootstrap process:
 // - already bootstrapped
+// plus, if given a cobra command:
 // - is unknown command
 // - is the default help command
 // - is the default version command
-func (cm *Caveman) skipBootstrap() bool {
+func (cm *Caveman) skipBootstrap(cmd *cobra.Command) bool {
 	flags := []string{
 		"-h",
 		"--help",
@@ -155,23 +95,25 @@ func (cm *Caveman) skipBootstrap() bool {
 		return true // already bootstrapped
 	}
 
-	cmd, _, err := cm.RootCmd.Find(os.Args[1:])
-	if err != nil {
-		return true // unknown command
-	}
-
-	for _, arg := range os.Args {
-		if !list.ExistInSlice(arg, flags) {
-			continue
+	if cmd != nil {
+		cmd, _, err := cmd.Find(os.Args[1:])
+		if err != nil {
+			return true // unknown command
 		}
 
-		// ensure that there is no user defined flag with the same name/shorthand
-		trimmed := strings.TrimLeft(arg, "-")
-		if len(trimmed) > 1 && cmd.Flags().Lookup(trimmed) == nil {
-			return true
-		}
-		if len(trimmed) == 1 && cmd.Flags().ShorthandLookup(trimmed) == nil {
-			return true
+		for _, arg := range os.Args {
+			if !list.ExistInSlice(arg, flags) {
+				continue
+			}
+
+			// ensure that there is no user defined flag with the same name/shorthand
+			trimmed := strings.TrimLeft(arg, "-")
+			if len(trimmed) > 1 && cmd.Flags().Lookup(trimmed) == nil {
+				return true
+			}
+			if len(trimmed) == 1 && cmd.Flags().ShorthandLookup(trimmed) == nil {
+				return true
+			}
 		}
 	}
 
@@ -219,7 +161,7 @@ type migrationsConnection struct {
 	MigrationsList migration.MigrationsList
 }
 
-func RunMigrations(app app.App) error {
+func RunMigrations(app manager.Manager) error {
 	connections := []migrationsConnection{
 		{
 			DB:             app.DB().NonConcurrentDB(),

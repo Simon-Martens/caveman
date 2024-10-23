@@ -24,7 +24,7 @@ func NewRunner(db *dbx.DB, migrationsList MigrationsList) (*Runner, error) {
 	runner := &Runner{
 		db:             db,
 		migrationsList: migrationsList,
-		tableName:      models.DEFAULT_MIGRATIONS_TABLE_NAME,
+		tableName:      models.DEFAULT_MIGRATIONS_TABLE,
 	}
 
 	if err := runner.createMigrationsTable(); err != nil {

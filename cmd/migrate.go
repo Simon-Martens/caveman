@@ -1,4 +1,4 @@
-// Package migratecmd adds a new "migrate" command support to a PocketBase instance.
+// Package migratecmd adds a new "migrate" command support to a Caveman instance.
 //
 // It also comes with automigrations support and templates generation
 // (both for JS and GO migration files).
@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/Simon-Martens/caveman/app"
+	"github.com/Simon-Martens/caveman/manager"
 	"github.com/Simon-Martens/caveman/migrations"
 	"github.com/Simon-Martens/caveman/tools/migration"
 	"github.com/spf13/cobra"
@@ -35,15 +35,15 @@ import (
 // Example usage:
 //
 //	migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{})
-func MustRegister(app app.App, rootCmd *cobra.Command, dir string) {
+func MustRegister(app *manager.Manager, rootCmd *cobra.Command, dir string) {
 	if err := Register(app, rootCmd, dir); err != nil {
 		panic(err)
 	}
 }
 
-// Register registers the migratecmd plugin to the provided app instance.
-func Register(app app.App, rootCmd *cobra.Command, dir string) error {
-	p := &plugin{app: app, dir: dir}
+// Register registers the migratecmd plugin to the provided Caveman instance.
+func Register(app *manager.Manager, rootCmd *cobra.Command, dir string) error {
+	p := &plugin{app: *app, dir: dir}
 
 	if dir == "" {
 		dir = filepath.Join(p.app.DataDir(), "../migrations")
@@ -58,7 +58,7 @@ func Register(app app.App, rootCmd *cobra.Command, dir string) error {
 }
 
 type plugin struct {
-	app app.App
+	app manager.Manager
 	dir string
 }
 
@@ -176,5 +176,5 @@ func init() {
 }
 `
 
-	return fmt.Sprintf(template, filepath.Base(p.config.Dir)), nil
+	return fmt.Sprintf(template, filepath.Base(p.dir)), nil
 }

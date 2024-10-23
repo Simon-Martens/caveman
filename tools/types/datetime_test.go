@@ -9,7 +9,7 @@ import (
 )
 
 func TestNowDateTime(t *testing.T) {
-	now := time.Now().UTC().Format("2006-01-02 15:04:05") // without ms part for test consistency
+	now := time.Now().UTC().Format("2006-01-02T15:04:05") // without ms part for test consistency
 	dt := types.NowDateTime()
 
 	if !strings.Contains(dt.String(), now) {
@@ -31,13 +31,11 @@ func TestParseDateTime(t *testing.T) {
 		{"invalid", ""},
 		{nowDateTime, nowStr},
 		{nowTime, nowStr},
-		{1641024040, "2022-01-01 08:00:40.000Z"},
-		{int32(1641024040), "2022-01-01 08:00:40.000Z"},
-		{int64(1641024040), "2022-01-01 08:00:40.000Z"},
-		{uint(1641024040), "2022-01-01 08:00:40.000Z"},
-		{uint64(1641024040), "2022-01-01 08:00:40.000Z"},
-		{uint32(1641024040), "2022-01-01 08:00:40.000Z"},
-		{"2022-01-01 11:23:45.678", "2022-01-01 11:23:45.678Z"},
+		{1641024040, "2022-01-01T08:00:40.000Z"},
+		{int32(1641024040), "2022-01-01T08:00:40.000Z"},
+		{uint(1641024040), "2022-01-01T08:00:40.000Z"},
+		{uint32(1641024040), "2022-01-01T08:00:40.000Z"},
+		{"2022-01-01T11:23:45.678", "2022-01-01T11:23:45.678Z"},
 	}
 
 	for i, s := range scenarios {
@@ -54,7 +52,7 @@ func TestParseDateTime(t *testing.T) {
 }
 
 func TestDateTimeTime(t *testing.T) {
-	str := "2022-01-01 11:23:45.678Z"
+	str := "2022-01-01T11:23:45.678Z"
 
 	expected, err := time.Parse(types.DefaultDateLayout, str)
 	if err != nil {
@@ -68,7 +66,7 @@ func TestDateTimeTime(t *testing.T) {
 
 	result := dt.Time()
 
-	if !expected.Equal(result) {
+	if !expected.Equal(*result) {
 		t.Errorf("Expected time %v, got %v", expected, result)
 	}
 }
@@ -91,7 +89,7 @@ func TestDateTimeString(t *testing.T) {
 		t.Fatalf("Expected empty string for zer datetime, got %q", dt0.String())
 	}
 
-	expected := "2022-01-01 11:23:45.678Z"
+	expected := "2022-01-01T11:23:45.678Z"
 	dt1, _ := types.ParseDateTime(expected)
 	if dt1.String() != expected {
 		t.Fatalf("Expected %q, got %v", expected, dt1)
@@ -104,7 +102,7 @@ func TestDateTimeMarshalJSON(t *testing.T) {
 		expected string
 	}{
 		{"", `""`},
-		{"2022-01-01 11:23:45.678", `"2022-01-01 11:23:45.678Z"`},
+		{"2022-01-01T11:23:45.678", `"2022-01-01T11:23:45.678Z"`},
 	}
 
 	for i, s := range scenarios {
@@ -132,8 +130,8 @@ func TestDateTimeUnmarshalJSON(t *testing.T) {
 		{"", ""},
 		{"invalid_json", ""},
 		{"'123'", ""},
-		{"2022-01-01 11:23:45.678", ""},
-		{`"2022-01-01 11:23:45.678"`, "2022-01-01 11:23:45.678Z"},
+		{"2022-01-01T11:23:45.678", ""},
+		{`"2022-01-01T11:23:45.678"`, "2022-01-01T11:23:45.678Z"},
 	}
 
 	for i, s := range scenarios {
@@ -149,13 +147,13 @@ func TestDateTimeUnmarshalJSON(t *testing.T) {
 func TestDateTimeValue(t *testing.T) {
 	scenarios := []struct {
 		value    any
-		expected string
+		expected int64
 	}{
-		{"", ""},
-		{"invalid", ""},
-		{1641024040, "2022-01-01 08:00:40.000Z"},
-		{"2022-01-01 11:23:45.678", "2022-01-01 11:23:45.678Z"},
-		{types.NowDateTime(), types.NowDateTime().String()},
+		{"", 0},
+		{"invalid", 0},
+		{1641024040, 1641024040000000},
+		{"2022-01-01T11:23:45.678", 1641036225678000},
+		{types.NowDateTime(), types.NowDateTime().Int()},
 	}
 
 	for i, s := range scenarios {
@@ -167,13 +165,13 @@ func TestDateTimeValue(t *testing.T) {
 		}
 
 		if result != s.expected {
-			t.Errorf("(%d) Expected %q, got %q", i, s.expected, result)
+			t.Errorf("(%d) Expected %d, got %d", i, s.expected, result)
 		}
 	}
 }
 
 func TestDateTimeScan(t *testing.T) {
-	now := time.Now().UTC().Format("2006-01-02 15:04:05") // without ms part for test consistency
+	now := time.Now().UTC().Format("2006-01-02T15:04:05") // without ms part for test consistency
 
 	scenarios := []struct {
 		value    any
@@ -185,8 +183,8 @@ func TestDateTimeScan(t *testing.T) {
 		{types.NowDateTime(), now},
 		{time.Now(), now},
 		{1.0, ""},
-		{1641024040, "2022-01-01 08:00:40.000Z"},
-		{"2022-01-01 11:23:45.678", "2022-01-01 11:23:45.678Z"},
+		{1641024040, "2022-01-01T08:00:40.000Z"},
+		{"2022-01-01T11:23:45.678", "2022-01-01T11:23:45.678Z"},
 	}
 
 	for i, s := range scenarios {
